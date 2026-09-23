@@ -145,7 +145,7 @@ WEB_PORT=3001 HTTP_PORT=8081 POSTGRES_PORT=5433 \
 Если на Linux доступ к Docker socket требует `sudo`, используйте вместо предыдущей команды:
 
 ```bash
-sudo env WEB_PORT=3001 HTTP_PORT=8081 POSTGRES_PORT=5433 \
+sudo env WEB_PORT=3000 HTTP_PORT=8080 POSTGRES_PORT=5432 \
   docker compose up --build --force-recreate -d --wait
 ```
 
