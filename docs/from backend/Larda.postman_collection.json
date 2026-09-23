@@ -1,0 +1,3793 @@
+{
+  "info": {
+    "_postman_id": "d366aef3-c82c-4f3d-a75a-9734bfb8c16a",
+    "name": "Larda - Complete Backend API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "# Larda frontend API test collection\n\nContains all 39 registered HTTP endpoints, plus ordered branches that demonstrate valid state transitions. Import this collection; the optional environment contains only base_url and demo identities. Collection defaults work without an environment.\n\n## Run the full workflow\n1. Start a seeded backend and PostgreSQL. Use backend AI_MODE=fallback for a free local demonstration. OPENAI_API_KEY belongs only in the backend .env. With AI_MODE=openai, task creation, answering, edits and retries may spend OpenAI credits.\n2. Run folder **01 Full workflow** in Collection Runner with **one iteration and 1000 ms request delay**. Or run:\n   `newman run postman/Larda.postman_collection.json --folder \"01 Full workflow\" --delay-request 1000 --timeout-request 10000`\n3. Do not run requests in parallel. The collection creates fresh teams/tasks, discovers real tag/question IDs, captures response IDs and owner revisions, polls async AI, publishes a task, exercises team/captain changes, completes milestones and task, and handles cancellation on separate entities. Each run adds demo records and EXP and replaces the two students' tags.\n4. Polls stop after poll_max_attempts (default 180) and fail/stop on failed AI. Only Runner/CLI/Newman follows setNextRequest loops; with Send, repeat polling manually until succeeded before continuing.\n5. Run the whole collection to include the optional retry folder; it is skipped by default. Require a current Postman or Newman runtime with pm.execution.setNextRequest and pm.execution.skipRequest.\n\n## Optional failed-AI retry\nSet collection variable retry_task_id to an owned, editable task with ai_status=failed, then run folder **02 Optional failed AI retry** with the same delay. The folder verifies the precondition, retries, polls, then clears retry_task_id on success. It never assumes a reusable seeded failed task. Repair provider settings or choose explicit fallback first. Normal failure is not silently replaced with fallback.\n\n## Variables and identity\nbase_url is the origin only (default http://localhost:8080). Business=1, captain=2, ordinary student=3. Captain/student are globally students; captain permission is per-team. Public requests omit X-Demo-User-ID. There is no bearer token or OpenAI key in this collection.\n\nKeep dynamic IDs/revision/answers as **collection variables**. Do not add them to an environment, globals or Runner data: higher-priority stale values can shadow captured values. Only owner task responses save revisions; public tasks have revision=0. Success statuses are asserted exactly (200/201/202/204), JSON response shapes are checked, and 204 is checked for an empty body.\n\nThe collection tests valid workflows, not every negative authorization/concurrency case. Failed requests stop the current iteration to prevent cascading writes. For all payload/response contracts see ../json.md and ../for_frontend.md.\n\nPostman workflow reference: https://learning.postman.com/docs/tests-and-scripts/running-collections/building-workflows\nPostman execution reference: https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string",
+      "description": "Backend origin without trailing slash or /api/v1."
+    },
+    {
+      "key": "business_id",
+      "value": "1",
+      "type": "string",
+      "description": "Seeded business persona. X-Demo-User-ID is demo impersonation, not real authentication."
+    },
+    {
+      "key": "captain_id",
+      "value": "2",
+      "type": "string",
+      "description": "Seeded student used as captain of newly created teams."
+    },
+    {
+      "key": "student_id",
+      "value": "3",
+      "type": "string",
+      "description": "Seeded ordinary student used as team member."
+    },
+    {
+      "key": "poll_max_attempts",
+      "value": "180",
+      "type": "string",
+      "description": "Maximum HTTP polls per AI operation. Use 1000 ms Runner/Newman request delay."
+    },
+    {
+      "key": "retry_task_id",
+      "value": "",
+      "type": "string",
+      "description": "Optional manual input: owned editable task whose current ai_status is failed. Blank skips the retry folder; cleared after successful retry."
+    },
+    {
+      "key": "task_id",
+      "value": "",
+      "type": "string",
+      "description": "Main task ID, captured from owner task responses."
+    },
+    {
+      "key": "revision",
+      "value": "",
+      "type": "string",
+      "description": "Current main task revision, captured from owner task responses only."
+    },
+    {
+      "key": "team_id",
+      "value": "",
+      "type": "string",
+      "description": "Main team ID, captured on team creation."
+    },
+    {
+      "key": "proposal_id",
+      "value": "",
+      "type": "string",
+      "description": "Main proposal ID."
+    },
+    {
+      "key": "milestone_id",
+      "value": "",
+      "type": "string",
+      "description": "Team-proposed milestone ID."
+    },
+    {
+      "key": "business_milestone_id",
+      "value": "",
+      "type": "string",
+      "description": "Business-created milestone ID."
+    },
+    {
+      "key": "cancel_team_id",
+      "value": "",
+      "type": "string",
+      "description": "Secondary team for cancellation branch."
+    },
+    {
+      "key": "cancel_proposal_id",
+      "value": "",
+      "type": "string",
+      "description": "Accepted proposal to cancel before task completion."
+    },
+    {
+      "key": "cancel_task_id",
+      "value": "",
+      "type": "string",
+      "description": "Separate task to cancel, never the completed main task."
+    },
+    {
+      "key": "cancel_revision",
+      "value": "",
+      "type": "string",
+      "description": "Owner revision of the cancellation task."
+    },
+    {
+      "key": "retry_revision",
+      "value": "",
+      "type": "string",
+      "description": "Owner revision of optional retry task."
+    },
+    {
+      "key": "run_label",
+      "value": "",
+      "type": "string",
+      "description": "Generated timestamp suffix for new teams."
+    },
+    {
+      "key": "selected_tag_ids",
+      "value": "[]",
+      "type": "string",
+      "description": "JSON array of discovered tag IDs."
+    },
+    {
+      "key": "catalog_tag_ids",
+      "value": "",
+      "type": "string",
+      "description": "Comma-separated discovered tag IDs for the catalog query."
+    },
+    {
+      "key": "answers_body",
+      "value": "",
+      "type": "string",
+      "description": "JSON body generated from all actual clarification question IDs."
+    }
+  ],
+  "item": [
+    {
+      "name": "01 Full workflow",
+      "description": "Repeatable success scenario with fresh entities. Execute from the first request with 1000 ms delay; individual later requests depend on earlier saved variables and entity states.",
+      "item": [
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000001",
+          "name": "01 Liveness and initialize run",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/livez",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "livez"
+              ]
+            },
+            "description": "Starts a fresh workflow run; resets dynamic collection variables and polling counters. Does not send a demo identity."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const state = pm.collectionVariables.toObject();",
+                  "Object.keys(state).filter(key => key.startsWith(\"_poll_\")).forEach(key => pm.collectionVariables.unset(key));",
+                  "[\"task_id\", \"revision\", \"team_id\", \"proposal_id\", \"milestone_id\", \"business_milestone_id\", \"cancel_team_id\", \"cancel_proposal_id\", \"cancel_task_id\", \"cancel_revision\", \"answers_body\", \"selected_tag_ids\", \"catalog_tag_ids\"].forEach(key => pm.collectionVariables.set(key, \"\"));",
+                  "pm.collectionVariables.set(\"run_label\", String(Date.now()));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"ok\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000002",
+          "name": "02 Database health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/healthz",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "healthz"
+              ]
+            },
+            "description": "Returns 200 only when PostgreSQL is available; a database outage returns 503. No demo identity header."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"ok\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000003",
+          "name": "03 Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/readyz",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "readyz"
+              ]
+            },
+            "description": "Same database readiness check as /healthz. No demo identity header."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"ok\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000004",
+          "name": "04 List demo users",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
+            },
+            "description": "Public seeded personas. The collection expects business_id=1, captain_id=2, student_id=3; the latter two both have global role student."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "    [\"business_id\", \"captain_id\", \"student_id\"].forEach(key => pm.expect(body.some(user => user.id === Number(pm.variables.get(key))), key + \" must exist\").to.eql(true));",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000005",
+          "name": "05 Business profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{business_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{business_id}}"
+              ]
+            },
+            "description": "Public profile with user, tags, achievements and exp_history. There is no PUT profile endpoint."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.user.id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000006",
+          "name": "06 List tags and select real IDs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tags"
+              ]
+            },
+            "description": "Saves the first two real tag IDs for later bodies. No tag ID is assumed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "    const ids = body.slice(0, 2).map(tag => tag.id);",
+                  "    pm.collectionVariables.set(\"selected_tag_ids\", JSON.stringify(ids));",
+                  "    pm.collectionVariables.set(\"catalog_tag_ids\", ids.join(\",\"));",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000007",
+          "name": "07 Set captain skills",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/tags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "tags"
+              ]
+            },
+            "description": "Replaces the captain's student tags. This intentionally changes the demo profile. Success has no response body.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tag_ids\": {{selected_tag_ids}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+                  "  if (pm.response.code !== 204) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    if (pm.response.text() !== \"\") throw new Error(\"204 response must have an empty body\");",
+                  "",
+                  "    pm.test(\"Empty 204 response\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000008",
+          "name": "08 Set student skills",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{student_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/me/tags",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "me",
+                "tags"
+              ]
+            },
+            "description": "Replaces the ordinary student's tags with valid discovered IDs; [] clears all tags.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"tag_ids\": {{selected_tag_ids}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 204\", function () { pm.response.to.have.status(204); });",
+                  "  if (pm.response.code !== 204) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    if (pm.response.text() !== \"\") throw new Error(\"204 response must have an empty body\");",
+                  "",
+                  "    pm.test(\"Empty 204 response\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000009",
+          "name": "09 Student profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{student_id}}"
+              ]
+            },
+            "description": "Inspect selected skills, current EXP and achievements."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.user.id).to.eql(Number(pm.variables.get(\"student_id\")));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000010",
+          "name": "10 Achievement catalog",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/achievements",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "achievements"
+              ]
+            },
+            "description": "Public achievement definitions; unlocked achievements are returned in the user profile."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000011",
+          "name": "11 Create workflow team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams"
+              ]
+            },
+            "description": "Creates a new team every run. The acting student becomes this team's captain.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Larda API team {{run_label}}\",\n  \"description\": \"Team created by the Postman end-to-end workflow.\",\n  \"interests\": [\n    \"Analytics\",\n    \"Web applications\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "  if (pm.response.code !== 201) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"team_id\", String(body.id));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000012",
+          "name": "12 Update team",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}"
+              ]
+            },
+            "description": "Captain replaces all team details.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Larda delivery team {{run_label}}\",\n  \"description\": \"Two students delivering an inventory dashboard.\",\n  \"interests\": [\n    \"Retail\",\n    \"Analytics\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000013",
+          "name": "13 Add ordinary student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}/members",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}",
+                "members"
+              ]
+            },
+            "description": "Only the current team captain may add a student.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{student_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000014",
+          "name": "14 Transfer captaincy to student",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}/captain",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}",
+                "captain"
+              ]
+            },
+            "description": "The target must already be a team member. The old captain becomes a member.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{student_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000015",
+          "name": "15 Restore original captain",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{student_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}/captain",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}",
+                "captain"
+              ]
+            },
+            "description": "User 3 now acts as current captain and transfers the role back to user 2.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{captain_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000016",
+          "name": "16 Remove ordinary student",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}/members/{{student_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}",
+                "members",
+                "{{student_id}}"
+              ]
+            },
+            "description": "Captain removes the ordinary member. The captain cannot remove themselves."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000017",
+          "name": "17 Add student back before rewards",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}/members",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}",
+                "members"
+              ]
+            },
+            "description": "Restores both members so the later milestone/task rewards are shared.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"user_id\": {{student_id}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000018",
+          "name": "18 List teams",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams"
+              ]
+            },
+            "description": "Public list including members and union of member tags."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000019",
+          "name": "19 Read workflow team",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}"
+              ]
+            },
+            "description": "Public team details after membership operations."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"team_id\")));",
+                  "    pm.expect(body.members).to.have.lengthOf(2);",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000020",
+          "name": "20 Create raw business task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Persists raw description and creates an asynchronous questions job. Uses backend AI_MODE/OPENAI_API_KEY settings; OpenAI mode can incur charges. No OpenAI key is sent by the frontend.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_description\": \"Build an inventory dashboard for our small retail business. Store managers currently compare weekly stock and sales manually. We need a working web prototype that highlights low-stock products using an anonymized CSV export, within 14 days.\",\n  \"industry\": \"Retail\",\n  \"topic\": \"Analytics\",\n  \"tag_ids\": {{selected_tag_ids}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 202\", function () { pm.response.to.have.status(202); });",
+                  "  if (pm.response.code !== 202) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.expect(body.ai_status).to.eql(\"pending\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000021",
+          "name": "21 Wait for initial questions and evaluation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Owner-only polling view. Run with a 1000 ms request delay. Repeats this request while pending/running, up to poll_max_attempts (180 by default). Failed AI or exhausted attempts fail the run and stop further writes. The Send button does not execute loops."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    const key = \"_poll_\" + pm.info.requestId;",
+                  "    const count = Number(pm.collectionVariables.get(key) || 0) + 1;",
+                  "    const maxAttempts = Number(pm.variables.get(\"poll_max_attempts\") || 180);",
+                  "    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3600) throw new Error(\"poll_max_attempts must be between 1 and 3600\");",
+                  "    if (body.ai_status === \"failed\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      throw new Error(\"AI failed: \" + (body.ai_error || \"Inspect /ai-jobs and retry the failed task\"));",
+                  "    }",
+                  "    if (body.ai_status === \"succeeded\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      pm.expect(body.evaluated_revision).to.eql(body.revision);",
+                  "      pm.expect(body.draft_evaluation).to.be.an(\"object\");",
+                  "      pm.expect(body.draft_evaluation.score).to.be.within(0, 100);",
+                  "      ",
+                  "    } else if (body.ai_status === \"pending\" || body.ai_status === \"running\") {",
+                  "      if (count >= maxAttempts) {",
+                  "        pm.collectionVariables.unset(key);",
+                  "        throw new Error(\"AI polling timed out after \" + count + \" attempts. Inspect worker and jobs; no dependent writes were sent.\");",
+                  "      }",
+                  "      pm.collectionVariables.set(key, String(count));",
+                  "      pm.execution.setNextRequest(pm.info.requestId);",
+                  "    } else {",
+                  "      throw new Error(\"Unexpected AI status: \" + body.ai_status);",
+                  "    }",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000022",
+          "name": "22 Get questions and prepare every answer",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/questions",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "questions"
+              ]
+            },
+            "description": "Reads all 3..7 real generated question IDs. Builds answers for every field_key in the backend's allowed set, with a text fallback for future fields. The next request sends the generated JSON body."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "    pm.expect(body.length).to.be.within(3, 7);",
+                  "    const answersByField = {",
+                  "      industry: \"Retail\",",
+                  "      topic: \"Analytics\",",
+                  "      title: \"Inventory dashboard for store managers\",",
+                  "      context: \"A small retail business currently combines weekly inventory and sales CSV exports by hand.\",",
+                  "      need: \"Reduce weekly inventory review from two hours to 30 minutes and flag products that require replenishment.\",",
+                  "      target_users: \"Three store managers review stock levels each Monday using a desktop browser.\",",
+                  "      available_data: \"An anonymized UTF-8 CSV export contains product_id, product_name, stock_quantity and weekly_units_sold. Business shares a sample through a private repository.\",",
+                  "      constraints: \"Deliver a prototype within 14 days. Use only anonymized exports; no production-system access. Support desktop browsers.\",",
+                  "      expected_result: \"A deployed web dashboard, source code repository, CSV import instructions and a short demo.\",",
+                  "      success_criteria: \"Import the agreed sample CSV, show stock for every product, and flag every product with stock below one week of sales.\",",
+                  "      contact: \"Demo business owner, product.owner@example.com.\",",
+                  "      interaction_format: \"A 30-minute video call each week and asynchronous questions in the project chat.\",",
+                  "      feedback_process: \"The business owner reviews a demo within two working days and records acceptance or required changes.\",",
+                  "      tag_ids: \"Use the existing tag IDs supplied with this task: \" + pm.collectionVariables.get(\"selected_tag_ids\")",
+                  "    };",
+                  "    const answers = body.map(question => ({",
+                  "      question_id: question.id,",
+                  "      answer: answersByField[question.field_key] || \"Build the agreed retail inventory dashboard from anonymized CSV data within 14 days; the business owner reviews a working demo against the agreed acceptance criteria.\"",
+                  "    }));",
+                  "    pm.expect(new Set(answers.map(answer => answer.question_id)).size).to.eql(body.length);",
+                  "    pm.collectionVariables.set(\"answers_body\", JSON.stringify({revision: Number(pm.collectionVariables.get(\"revision\")), answers: answers}, null, 2));",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000023",
+          "name": "23 Answer all generated questions",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/answers",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "answers"
+              ]
+            },
+            "description": "Requires answers to every returned question and current owner revision. The previous request builds this body from actual IDs; do not substitute guessed question IDs.",
+            "body": {
+              "mode": "raw",
+              "raw": "{{answers_body}}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 202\", function () { pm.response.to.have.status(202); });",
+                  "  if (pm.response.code !== 202) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000024",
+          "name": "24 Wait for generated editable card",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Owner-only polling view. Run with a 1000 ms request delay. Repeats this request while pending/running, up to poll_max_attempts (180 by default). Failed AI or exhausted attempts fail the run and stop further writes. The Send button does not execute loops."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    const key = \"_poll_\" + pm.info.requestId;",
+                  "    const count = Number(pm.collectionVariables.get(key) || 0) + 1;",
+                  "    const maxAttempts = Number(pm.variables.get(\"poll_max_attempts\") || 180);",
+                  "    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3600) throw new Error(\"poll_max_attempts must be between 1 and 3600\");",
+                  "    if (body.ai_status === \"failed\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      throw new Error(\"AI failed: \" + (body.ai_error || \"Inspect /ai-jobs and retry the failed task\"));",
+                  "    }",
+                  "    if (body.ai_status === \"succeeded\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      pm.expect(body.evaluated_revision).to.eql(body.revision);",
+                  "      pm.expect(body.draft_evaluation).to.be.an(\"object\");",
+                  "      pm.expect(body.draft_evaluation.score).to.be.within(0, 100);",
+                  "      ",
+                  "    } else if (body.ai_status === \"pending\" || body.ai_status === \"running\") {",
+                  "      if (count >= maxAttempts) {",
+                  "        pm.collectionVariables.unset(key);",
+                  "        throw new Error(\"AI polling timed out after \" + count + \" attempts. Inspect worker and jobs; no dependent writes were sent.\");",
+                  "      }",
+                  "      pm.collectionVariables.set(key, String(count));",
+                  "      pm.execution.setNextRequest(pm.info.requestId);",
+                  "    } else {",
+                  "      throw new Error(\"Unexpected AI status: \" + body.ai_status);",
+                  "    }",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000025",
+          "name": "25 Edit the draft card",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Every persisted draft edit increments revision and queues an evaluation. PATCH supports any subset of editable fields plus mandatory current revision. Top-level public content changes only on confirmation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revision\": {{revision}},\n  \"title\": \"Inventory dashboard for store managers\",\n  \"context\": \"Store managers currently combine weekly inventory and sales CSV exports manually.\",\n  \"need\": \"Reduce weekly inventory review from two hours to 30 minutes and identify products requiring replenishment.\",\n  \"target_users\": \"Three store managers using desktop web browsers.\",\n  \"available_data\": \"An anonymized CSV sample with product_id, product_name, stock_quantity and weekly_units_sold is provided in a private project repository.\",\n  \"constraints\": \"Deliver a working prototype in 14 days. Use anonymized CSV data and no production-system access.\",\n  \"expected_result\": \"A working web dashboard, repository, CSV import instructions and a short demo.\",\n  \"success_criteria\": \"Import the sample CSV, display every product, and flag all products with less than one week of stock.\",\n  \"contact\": \"product.owner@example.com\",\n  \"interaction_format\": \"Weekly 30-minute video call plus asynchronous project chat.\",\n  \"feedback_process\": \"The business owner reviews each demo within two working days.\",\n  \"tag_ids\": {{selected_tag_ids}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 202\", function () { pm.response.to.have.status(202); });",
+                  "  if (pm.response.code !== 202) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000026",
+          "name": "26 Wait for edited draft evaluation",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Owner-only polling view. Run with a 1000 ms request delay. Repeats this request while pending/running, up to poll_max_attempts (180 by default). Failed AI or exhausted attempts fail the run and stop further writes. The Send button does not execute loops."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    const key = \"_poll_\" + pm.info.requestId;",
+                  "    const count = Number(pm.collectionVariables.get(key) || 0) + 1;",
+                  "    const maxAttempts = Number(pm.variables.get(\"poll_max_attempts\") || 180);",
+                  "    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3600) throw new Error(\"poll_max_attempts must be between 1 and 3600\");",
+                  "    if (body.ai_status === \"failed\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      throw new Error(\"AI failed: \" + (body.ai_error || \"Inspect /ai-jobs and retry the failed task\"));",
+                  "    }",
+                  "    if (body.ai_status === \"succeeded\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      pm.expect(body.evaluated_revision).to.eql(body.revision);",
+                  "      pm.expect(body.draft_evaluation).to.be.an(\"object\");",
+                  "      pm.expect(body.draft_evaluation.score).to.be.within(0, 100);",
+                  "      ",
+                  "    } else if (body.ai_status === \"pending\" || body.ai_status === \"running\") {",
+                  "      if (count >= maxAttempts) {",
+                  "        pm.collectionVariables.unset(key);",
+                  "        throw new Error(\"AI polling timed out after \" + count + \" attempts. Inspect worker and jobs; no dependent writes were sent.\");",
+                  "      }",
+                  "      pm.collectionVariables.set(key, String(count));",
+                  "      pm.execution.setNextRequest(pm.info.requestId);",
+                  "    } else {",
+                  "      throw new Error(\"Unexpected AI status: \" + body.ai_status);",
+                  "    }",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000027",
+          "name": "27 Inspect AI jobs",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/ai-jobs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "ai-jobs"
+              ]
+            },
+            "description": "Owner-only job history, newest first. Contains saved inputs/results for questions, generation and evaluation jobs."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "    pm.expect(body.length).to.be.at.least(3);",
+                  "    pm.expect(body[0].status).to.eql(\"succeeded\");",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000028",
+          "name": "28 Confirm evaluated revision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/confirm",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "confirm"
+              ]
+            },
+            "description": "Copies evaluated draft fields and score to the confirmed top-level card. Requires current evaluated revision and nonblank title; does not publish a new task.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"revision\": {{revision}}\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.expect(body.draft_card).to.eql(null);",
+                  "    pm.expect(body.readiness_score).to.be.within(0, 100);",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000029",
+          "name": "29 Publish confirmed task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/publish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "publish"
+              ]
+            },
+            "description": "Publishes the confirmed task; any readiness score is allowed."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.expect(body.publication_status).to.eql(\"published\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000030",
+          "name": "30 Public task detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}"
+              ]
+            },
+            "description": "Public view deliberately hides raw description, draft, AI details and owner revision. This request never overwrites the saved owner revision."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.eql(Number(pm.collectionVariables.get(\"task_id\")));",
+                  "    pm.expect(body.revision).to.eql(0);",
+                  "    pm.expect(body.draft_card).to.eql(null);",
+                  "    pm.expect(body.raw_description).to.eql(\"\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000031",
+          "name": "31 Public task catalog with filters",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks?industry=Retail&topic=Analytics&tag_ids={{catalog_tag_ids}}&limit=20&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ],
+              "query": [
+                {
+                  "key": "industry",
+                  "value": "Retail"
+                },
+                {
+                  "key": "topic",
+                  "value": "Analytics"
+                },
+                {
+                  "key": "tag_ids",
+                  "value": "{{catalog_tag_ids}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "All query parameters are optional. Also supports readiness=draft|working|ready|priority. Results are public confirmed tasks; this request does not save owner revision. Tags use comma-separated positive IDs; limit 1..100, offset >= 0."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000032",
+          "name": "32 Business task dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/mine",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "mine"
+              ]
+            },
+            "description": "Owner views, including drafts/AI state; returns up to 100 tasks. Does not replace the active workflow task ID or revision."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000033",
+          "name": "33 Archive task before execution",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/archive",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "archive"
+              ]
+            },
+            "description": "Hides the main task from the public catalog before any execution. The following request restores publication; archive is not task cancellation."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.expect(body.publication_status).to.eql(\"archived\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000034",
+          "name": "34 Republish archived task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/publish",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "publish"
+              ]
+            },
+            "description": "Reuses the confirmed card to restore publication before proposals."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.expect(body.publication_status).to.eql(\"published\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000035",
+          "name": "35 Submit main team proposal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/proposals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "proposals"
+              ]
+            },
+            "description": "Only the team's captain can submit. Each team can have one proposal per task. prototype_url may be empty or an http(s) URL.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"team_id\": {{team_id}},\n  \"solution_idea\": \"Build a CSV import and inventory dashboard with low-stock alerts.\",\n  \"plan\": \"Agree the data format, deliver an import prototype, then build and demonstrate the dashboard.\",\n  \"duration_days\": 14,\n  \"prototype_url\": \"https://example.com/larda/inventory-prototype\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "  if (pm.response.code !== 201) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"proposal_id\", String(body.id));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000036",
+          "name": "36 Owner proposal inbox",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/proposals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "proposals"
+              ]
+            },
+            "description": "Task owner sees all team proposals with nested milestones."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000037",
+          "name": "37 Student team proposals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{student_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams/{{team_id}}/proposals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams",
+                "{{team_id}}",
+                "proposals"
+              ]
+            },
+            "description": "Any current member can read their team's proposals; only captain can submit one."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!Array.isArray(body)) throw new Error(\"Expected a JSON array\");",
+                  "    pm.expect(body.some(proposal => proposal.id === Number(pm.collectionVariables.get(\"proposal_id\")))).to.eql(true);",
+                  "    pm.test(\"Valid JSON array and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000038",
+          "name": "38 Accept main proposal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/proposals/{{proposal_id}}/decision",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                "{{proposal_id}}",
+                "decision"
+              ]
+            },
+            "description": "Business chooses accepted or rejected. Accepting starts the proposal and task execution; multiple teams can be accepted.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"accepted\");",
+                  "    pm.expect(body.execution_status).to.eql(\"in_progress\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000039",
+          "name": "39 Create cancellation-branch team",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/teams",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "teams"
+              ]
+            },
+            "description": "A second team isolates the cancellation branch; it does not replace the main team variable.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Larda branch team {{run_label}}\",\n  \"description\": \"Separate team for a proposal cancellation branch.\",\n  \"interests\": [\n    \"Retail\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "  if (pm.response.code !== 201) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"cancel_team_id\", String(body.id));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000040",
+          "name": "40 Submit cancellation-branch proposal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/proposals",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "proposals"
+              ]
+            },
+            "description": "Uses a different team because the same team cannot submit a second proposal for this task.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"team_id\": {{cancel_team_id}},\n  \"solution_idea\": \"Explore a second implementation for comparison.\",\n  \"plan\": \"Prepare a parallel proof of concept.\",\n  \"duration_days\": 7,\n  \"prototype_url\": \"\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "  if (pm.response.code !== 201) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"cancel_proposal_id\", String(body.id));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000041",
+          "name": "41 Accept cancellation-branch proposal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/proposals/{{cancel_proposal_id}}/decision",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                "{{cancel_proposal_id}}",
+                "decision"
+              ]
+            },
+            "description": "Cancellation requires an accepted active proposal; pending proposals are handled with a rejection decision instead.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"accepted\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.execution_status).to.eql(\"in_progress\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000042",
+          "name": "42 Cancel accepted branch proposal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/proposals/{{cancel_proposal_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                "{{cancel_proposal_id}}",
+                "cancel"
+              ]
+            },
+            "description": "Only the business may cancel an accepted active proposal. The main proposal remains active."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.execution_status).to.eql(\"cancelled\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000043",
+          "name": "43 Captain proposes milestone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/proposals/{{proposal_id}}/milestones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                "{{proposal_id}}",
+                "milestones"
+              ]
+            },
+            "description": "The team captain proposes a milestone. Business approval is required before submission.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": 1,\n  \"title\": \"CSV import and inventory view\",\n  \"description\": \"Deliver a documented result and demonstrate it to the business contact.\",\n  \"exp_reward\": 100\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "  if (pm.response.code !== 201) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"milestone_id\", String(body.id));",
+                  "    pm.expect(body.proposal_id).to.eql(Number(pm.collectionVariables.get(\"proposal_id\")));",
+                  "    pm.expect(body.status).to.eql(\"pending\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000044",
+          "name": "44 Business approves proposed milestone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{milestone_id}}/approve",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{milestone_id}}",
+                "approve"
+              ]
+            },
+            "description": "Approval belongs only to the task owner. It approves the scope, not the submitted result."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.approved_by).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.approved_at).to.be.a(\"string\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000045",
+          "name": "45 Captain submits milestone result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{milestone_id}}/submit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{milestone_id}}",
+                "submit"
+              ]
+            },
+            "description": "Only current captain may submit an approved active milestone. Result must be an http(s) URL.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"result_url\": \"https://example.com/larda/inventory-demo-v1\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"submitted\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000046",
+          "name": "46 Business requests milestone revision",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{milestone_id}}/review",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{milestone_id}}",
+                "review"
+              ]
+            },
+            "description": "Rejected results can be resubmitted. This step grants no milestone EXP.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accepted\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"rejected\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000047",
+          "name": "47 Captain resubmits revised result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{milestone_id}}/submit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{milestone_id}}",
+                "submit"
+              ]
+            },
+            "description": "Resubmission after business rejection.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"result_url\": \"https://example.com/larda/inventory-demo-v2\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"submitted\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000048",
+          "name": "48 Business accepts milestone result",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{milestone_id}}/review",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{milestone_id}}",
+                "review"
+              ]
+            },
+            "description": "Completes the milestone and divides exp_reward among current team members. Repeating acceptance does not duplicate rewards.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accepted\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"completed\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000049",
+          "name": "49 Business adds an approved milestone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/proposals/{{proposal_id}}/milestones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                "{{proposal_id}}",
+                "milestones"
+              ]
+            },
+            "description": "The task owner creates an automatically approved milestone.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"position\": 2,\n  \"title\": \"Handover documentation\",\n  \"description\": \"Deliver a documented result and demonstrate it to the business contact.\",\n  \"exp_reward\": 50\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 201\", function () { pm.response.to.have.status(201); });",
+                  "  if (pm.response.code !== 201) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"business_milestone_id\", String(body.id));",
+                  "    pm.expect(body.proposal_id).to.eql(Number(pm.collectionVariables.get(\"proposal_id\")));",
+                  "    pm.expect(body.status).to.eql(\"pending\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000050",
+          "name": "50 Captain submits business milestone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{captain_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{business_milestone_id}}/submit",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{business_milestone_id}}",
+                "submit"
+              ]
+            },
+            "description": "The business-created milestone was automatically approved.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"result_url\": \"https://example.com/larda/inventory-handover\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"submitted\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000051",
+          "name": "51 Business accepts handover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/milestones/{{business_milestone_id}}/review",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "milestones",
+                "{{business_milestone_id}}",
+                "review"
+              ]
+            },
+            "description": "Completes the second milestone before completing the proposal.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accepted\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.status).to.eql(\"completed\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000052",
+          "name": "52 Complete main proposal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/proposals/{{proposal_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "proposals",
+                "{{proposal_id}}",
+                "complete"
+              ]
+            },
+            "description": "Requires at least one approved completed milestone and no unfinished approved milestones. Does not complete the task automatically."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.execution_status).to.eql(\"completed\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000053",
+          "name": "53 Complete business task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{task_id}}/complete",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{task_id}}",
+                "complete"
+              ]
+            },
+            "description": "Requires at least one completed accepted proposal and every other accepted proposal completed or cancelled. Awards task EXP to completing teams and business."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"revision\", String(body.revision));",
+                  "    pm.expect(body.execution_status).to.eql(\"completed\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000054",
+          "name": "54 Verify captain rewards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{captain_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{captain_id}}"
+              ]
+            },
+            "description": "Inspect cumulative EXP history and achievements after the completed scenario. Existing demo EXP makes fixed totals unsuitable."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.user.id).to.eql(Number(pm.variables.get(\"captain_id\")));",
+                  "    pm.expect(body.user.exp).to.be.a(\"number\").above(0);",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000055",
+          "name": "55 Verify business rewards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{business_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{business_id}}"
+              ]
+            },
+            "description": "Inspect business EXP and unlocked achievements."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.user.id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000056",
+          "name": "56 Create separate task to cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks"
+              ]
+            },
+            "description": "Uses a fresh task so cancellation never targets the completed main task. Creation still queues AI, so OpenAI mode may incur a call before cancellation.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"raw_description\": \"A separate demo task created solely to test business cancellation.\",\n  \"industry\": \"Retail\",\n  \"topic\": \"Analytics\",\n  \"tag_ids\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 202\", function () { pm.response.to.have.status(202); });",
+                  "  if (pm.response.code !== 202) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"cancel_task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"cancel_revision\", String(body.revision));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000057",
+          "name": "57 Cancel separate task",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{cancel_task_id}}/cancel",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{cancel_task_id}}",
+                "cancel"
+              ]
+            },
+            "description": "Cancellation is allowed while AI is pending/running. Stops further task edits and execution; an in-flight job may later be superseded. Main task variables remain intact."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"cancel_task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"cancel_revision\", String(body.revision));",
+                  "    pm.expect(body.execution_status).to.eql(\"cancelled\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Optional failed AI retry",
+      "description": "Skipped unless collection variable retry_task_id is explicitly set to an owned editable task with failed current AI check. Run from R1, with 1000 ms delay. Clears retry_task_id after successful completion.",
+      "item": [
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000058",
+          "name": "R1 Inspect optional failed task",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{retry_task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{retry_task_id}}"
+              ]
+            },
+            "description": "Optional branch, skipped when retry_task_id is blank. Set this collection variable to an owned task whose current AI check failed and whose execution is not completed/cancelled. Run this folder from its first request."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.collectionVariables.get(\"retry_task_id\") || \"\").trim()) {",
+                  "  console.info(\"Skipped optional AI retry: set collection variable retry_task_id to an owned editable task with ai_status=failed.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"retry_task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"retry_revision\", String(body.revision));",
+                  "    pm.expect(body.ai_status, \"Retry needs an existing failed check\").to.eql(\"failed\");",
+                  "    pm.expect([\"completed\", \"cancelled\"]).not.to.include(body.execution_status);",
+                  "    Object.keys(pm.collectionVariables.toObject()).filter(key => key.startsWith(\"_poll_\")).forEach(key => pm.collectionVariables.unset(key));",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000059",
+          "name": "R2 Retry failed AI check",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{retry_task_id}}/ai/retry",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{retry_task_id}}",
+                "ai",
+                "retry"
+              ]
+            },
+            "description": "Requeues only the failed job for the current revision. It cannot be used on pending, running or successful checks. Fix backend OpenAI configuration or choose explicit fallback mode before retrying. May incur OpenAI charges."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.collectionVariables.get(\"retry_task_id\") || \"\").trim()) {",
+                  "  console.info(\"Skipped optional AI retry: set collection variable retry_task_id to an owned editable task with ai_status=failed.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 202\", function () { pm.response.to.have.status(202); });",
+                  "  if (pm.response.code !== 202) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"retry_task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"retry_revision\", String(body.revision));",
+                  "    pm.expect(body.ai_status).to.eql(\"pending\");",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        },
+        {
+          "id": "aa711e17-426b-4833-9aab-000000000060",
+          "name": "R3 Wait for optional retry",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User-ID",
+                "value": "{{business_id}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tasks/{{retry_task_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "tasks",
+                "{{retry_task_id}}"
+              ]
+            },
+            "description": "Owner-only polling view. Run with a 1000 ms request delay. Repeats this request while pending/running, up to poll_max_attempts (180 by default). Failed AI or exhausted attempts fail the run and stop further writes. The Send button does not execute loops."
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!String(pm.collectionVariables.get(\"retry_task_id\") || \"\").trim()) {",
+                  "  console.info(\"Skipped optional AI retry: set collection variable retry_task_id to an owned editable task with ai_status=failed.\");",
+                  "  pm.execution.skipRequest();",
+                  "}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "(function () {",
+                  "  pm.test(\"HTTP 200\", function () { pm.response.to.have.status(200); });",
+                  "  if (pm.response.code !== 200) { pm.execution.setNextRequest(null); return; }",
+                  "  try {",
+                  "    const body = pm.response.json();",
+                  "    if (!body || typeof body !== 'object' || Array.isArray(body)) throw new Error(\"Expected a JSON object\");",
+                  "    pm.expect(body.id).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"retry_task_id\", String(body.id));",
+                  "    pm.expect(body.owner_id).to.eql(Number(pm.variables.get(\"business_id\")));",
+                  "    pm.expect(body.revision).to.be.a(\"number\").above(0);",
+                  "    pm.collectionVariables.set(\"retry_revision\", String(body.revision));",
+                  "    const key = \"_poll_\" + pm.info.requestId;",
+                  "    const count = Number(pm.collectionVariables.get(key) || 0) + 1;",
+                  "    const maxAttempts = Number(pm.variables.get(\"poll_max_attempts\") || 180);",
+                  "    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 3600) throw new Error(\"poll_max_attempts must be between 1 and 3600\");",
+                  "    if (body.ai_status === \"failed\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      throw new Error(\"AI failed: \" + (body.ai_error || \"Inspect /ai-jobs and retry the failed task\"));",
+                  "    }",
+                  "    if (body.ai_status === \"succeeded\") {",
+                  "      pm.collectionVariables.unset(key);",
+                  "      pm.expect(body.evaluated_revision).to.eql(body.revision);",
+                  "      pm.expect(body.draft_evaluation).to.be.an(\"object\");",
+                  "      pm.expect(body.draft_evaluation.score).to.be.within(0, 100);",
+                  "      pm.collectionVariables.set(\"retry_task_id\", \"\");",
+                  "    } else if (body.ai_status === \"pending\" || body.ai_status === \"running\") {",
+                  "      if (count >= maxAttempts) {",
+                  "        pm.collectionVariables.unset(key);",
+                  "        throw new Error(\"AI polling timed out after \" + count + \" attempts. Inspect worker and jobs; no dependent writes were sent.\");",
+                  "      }",
+                  "      pm.collectionVariables.set(key, String(count));",
+                  "      pm.execution.setNextRequest(pm.info.requestId);",
+                  "    } else {",
+                  "      throw new Error(\"Unexpected AI status: \" + body.ai_status);",
+                  "    }",
+                  "    pm.test(\"Valid JSON object and workflow state\", function () { pm.expect(true).to.eql(true); });",
+                  "  } catch (error) {",
+                  "    pm.test(\"Response matches workflow requirements\", function () { throw error; });",
+                  "    pm.execution.setNextRequest(null);",
+                  "  }",
+                  "})();"
+                ]
+              }
+            }
+          ],
+          "response": []
+        }
+      ]
+    }
+  ]
+}

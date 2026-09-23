@@ -9,6 +9,9 @@ import type {
 export const emptyCard = (): TaskCard => ({
   title: "",
   context: "",
+  need: "",
+  targetUsers: "",
+  contact: "",
   expectedResult: "",
   successCriteria: "",
   availableData: "",
@@ -16,38 +19,82 @@ export const emptyCard = (): TaskCard => ({
   interactionFormat: "",
   feedbackProcess: "",
 });
-export const cardOf = (task: Task): TaskCard => task.draftCard ?? task;
+export const cardOf = (task: Task): TaskCard => {
+  const source = task.draftCard ?? task;
+  return Object.fromEntries(
+    Object.keys(emptyCard()).map((key) => [
+      key,
+      source[key as keyof TaskCard] ?? "",
+    ]),
+  ) as unknown as TaskCard;
+};
 export const scoreRules: {
   field: keyof TaskCard;
   label: string;
   max: number;
 }[] = [
-  { field: "context", label: "Описание проблемы", max: 25 },
-  { field: "expectedResult", label: "Ожидаемый результат", max: 20 },
-  { field: "successCriteria", label: "Критерий результата", max: 15 },
-  { field: "availableData", label: "Данные от компании", max: 15 },
+  { field: "context", label: "Контекст", max: 10 },
+  { field: "need", label: "Потребность", max: 10 },
+  { field: "availableData", label: "Данные и материалы", max: 20 },
+  { field: "expectedResult", label: "Ожидаемый результат", max: 15 },
+  { field: "successCriteria", label: "Критерии успеха", max: 15 },
   { field: "constraints", label: "Ограничения", max: 10 },
-  { field: "interactionFormat", label: "Формат работы", max: 10 },
-  { field: "feedbackProcess", label: "Порядок обратной связи", max: 5 },
+  { field: "targetUsers", label: "Пользователи", max: 10 },
+  { field: "contact", label: "Контакт", max: 5 },
+  { field: "interactionFormat", label: "Формат взаимодействия", max: 5 },
 ];
-// Mock policy: completeness only. Production score must come from the API.
 export function calculateReadiness(card: TaskCard) {
-  const scoreBreakdown: ScoreItem[] = scoreRules.map((rule) => ({
+  const items = scoreRules.map((rule) => ({
     ...rule,
-    earned: card[rule.field].trim() ? rule.max : 0,
+    earned: card[rule.field]?.trim() ? rule.max : 0,
   }));
+  const grouped = (
+    field: keyof TaskCard,
+    label: string,
+    fields: (keyof TaskCard)[],
+  ): ScoreItem => ({
+    field,
+    label,
+    max: items
+      .filter((i) => fields.includes(i.field))
+      .reduce((n, i) => n + i.max, 0),
+    earned: items
+      .filter((i) => fields.includes(i.field))
+      .reduce((n, i) => n + i.earned, 0),
+  });
+  const scoreBreakdown = [
+    grouped("context", "Контекст и потребность", ["context", "need"]),
+    ...items.filter(
+      (i) =>
+        !["context", "need", "contact", "interactionFormat"].includes(i.field),
+    ),
+    grouped("contact", "Связь с бизнесом", ["contact", "interactionFormat"]),
+  ];
   return {
     scoreBreakdown,
-    readinessScore: scoreBreakdown.reduce((sum, item) => sum + item.earned, 0),
+    readinessScore: scoreBreakdown.reduce((n, i) => n + i.earned, 0),
   };
 }
+export const readinessBand = (score: number) =>
+  score < 40
+    ? "Требует уточнения"
+    : score < 70
+      ? "Рабочая"
+      : score < 90
+        ? "Готовая"
+        : "Приоритетная";
+export const improvements = (card: TaskCard) =>
+  scoreRules
+    .filter((r) => !card[r.field]?.trim())
+    .sort((a, b) => b.max - a.max)
+    .slice(0, 3);
 export function questionsFor(taskId: string): TaskQuestion[] {
   return [
     {
       fieldKey: "expectedResult",
       question: "Что должна сделать команда?",
       hint: "Например: сделать прототип списка заявок, чтобы не переносить их вручную.",
-      gain: 20,
+      gain: 15,
     },
     {
       fieldKey: "successCriteria",
@@ -59,7 +106,7 @@ export function questionsFor(taskId: string): TaskQuestion[] {
       fieldKey: "availableData",
       question: "Какие данные вы можете предоставить?",
       hint: "Например: Excel-таблицу и обезличенные сообщения. Если данных нет, так и напишите.",
-      gain: 15,
+      gain: 20,
     },
   ].map((item, index) => ({
     ...item,
@@ -71,12 +118,8 @@ export function questionsFor(taskId: string): TaskQuestion[] {
     answer: null,
   }));
 }
-export const taskReady = (task: Task, questions: TaskQuestion[]) =>
-  task.readinessScore >= 70 &&
-  !!cardOf(task).title.trim() &&
-  questions
-    .filter((q) => q.taskId === task.id)
-    .every((q) => !!q.answer?.trim());
+export const taskReady = (task: Task, _questions: TaskQuestion[] = []) =>
+  !!cardOf(task).title.trim() && !!cardOf(task).context.trim();
 
 export function nextAction(
   task: Task,
@@ -102,9 +145,12 @@ export function nextAction(
   if (responses.some((p) => p.status === "accepted"))
     return {
       rank: 4,
-      label: "Посмотреть выбранную команду",
-      to: `${base}/responses`,
-      note: "Решение сохранено. Идея и план выбранной команды — в откликах.",
+      label:
+        task.executionStatus === "not_started"
+          ? "Настроить проект"
+          : "Открыть проект",
+      to: `/business/projects/${responses.find((p) => p.status === "accepted")!.id}`,
+      note: "Критерии, сроки и принятые результаты выбранной команды.",
     };
   if (responses.some((p) => p.status === "pending"))
     return {

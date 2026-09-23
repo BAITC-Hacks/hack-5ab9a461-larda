@@ -18,11 +18,24 @@ function fixture(
     ...emptyCard(),
     title,
     context,
+    need: result,
+    targetUsers: "Сотрудники компании (демонстрационные данные)",
     expectedResult: result,
     successCriteria:
       "На тестовых данных весь описанный сценарий проходит без ошибок.",
     availableData: data,
   };
+  // Deliberately varied synthetic completeness for catalogue/rating demos.
+  if (id === "104") {
+    card.availableData = "";
+    card.successCriteria = "";
+    card.targetUsers = "";
+  }
+  if (id === "105") {
+    card.contact = "demo@example.com";
+    card.interactionFormat = "Еженедельный разбор результатов (пример)";
+    card.constraints = "Использовать только синтетические отзывы";
+  }
   return {
     ...card,
     ...calculateReadiness(card),
@@ -40,7 +53,13 @@ function fixture(
 }
 export function initialState(): WorkspaceState {
   return {
-    version: 1,
+    version: 2,
+    projects: [],
+    submissions: [],
+    reviews: [],
+    xpTransactions: [],
+    achievements: [],
+    acknowledgedTransactionIds: [],
     role: null,
     activeDraftId: null,
     seenProposalIds: [],
@@ -62,6 +81,8 @@ export function initialState(): WorkspaceState {
       },
     ],
     teams: [
+      { id: "4", name: "Команда «Поток»", description: "Аналитика" },
+      { id: "5", name: "Команда «Вектор»", description: "Дизайн" },
       {
         id: "1",
         name: "Команда «Нова»",
@@ -76,10 +97,38 @@ export function initialState(): WorkspaceState {
     ],
     teamMembers: [
       { teamId: "1", userId: "2", role: "captain" },
+      { teamId: "1", userId: "3", role: "member" },
       { teamId: "2", userId: "3", role: "captain" },
       { teamId: "3", userId: "4", role: "captain" },
     ],
     tasks: [
+      fixture(
+        "103",
+        "1",
+        "Снижение списаний кофейни",
+        "Вечером остаются непроданные десерты.",
+        "Прототип прогноза спроса",
+        "Обезличенная история продаж",
+        "Общепит",
+      ),
+      fixture(
+        "104",
+        "1",
+        "Маршруты доставки",
+        "Курьеры планируют маршруты вручную.",
+        "Планировщик маршрутов",
+        "Тестовые адреса",
+        "Логистика",
+      ),
+      fixture(
+        "105",
+        "5",
+        "Обратная связь покупателей",
+        "Отзывы не собраны в одном месте.",
+        "Панель отзывов",
+        "Синтетические отзывы",
+        "Торговля",
+      ),
       fixture(
         "101",
         "1",
@@ -101,6 +150,20 @@ export function initialState(): WorkspaceState {
     ],
     questions: [],
     proposals: [
+      ...[0, 1, 2].map((i) => ({
+        id: String(203 + i),
+        taskId: String(103 + i),
+        teamId: "1",
+        submittedBy: "2",
+        solutionIdea: "Демонстрация: исследуем процесс и проверим прототип.",
+        plan: "Анализ, прототип, проверка результата.",
+        durationDays: 10,
+        prototypeUrl: "",
+        status: "pending" as const,
+        decidedBy: null,
+        decidedAt: null,
+        executionStatus: "not_started" as const,
+      })),
       {
         id: "201",
         taskId: "101",

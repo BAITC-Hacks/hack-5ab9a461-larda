@@ -75,7 +75,9 @@ export function ResponsesPage() {
               Решение сохранено. Остальные отклики не отклоняются автоматически.
             </p>
           </div>
-          <ActionLink to="/business">К рабочему столу</ActionLink>
+          <ActionLink to={`/business/projects/${selected.id}`}>
+            Открыть проект
+          </ActionLink>
         </section>
       )}
       <ErrorMessage message={seenError} />

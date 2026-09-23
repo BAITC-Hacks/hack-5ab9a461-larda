@@ -3,33 +3,34 @@ import {
   STUDENT_TEAM_ID,
   STUDENT_USER_ID,
   type Task,
+  type TaskCard,
   type WorkspaceState,
 } from "../domain/models";
 import {
   calculateReadiness,
   cardOf,
   emptyCard,
-  questionsFor,
   taskReady,
 } from "../domain/taskRules";
+import { httpUrl } from "../domain/progression";
+import {
+  startProject,
+  submitMilestone,
+  reviewSubmission,
+} from "../domain/projectRules";
+import { localAssistant } from "../domain/assistant";
+import { migrateState } from "./migration";
+import { progressionExample } from "./progressionExample";
 import { initialState } from "./fixtures";
 import type { WorkspaceRepository } from "./WorkspaceRepository";
 
-const STORAGE_KEY = "larda.workspace.v1";
+const STORAGE_KEY = "larda.workspace.v2";
 export function createMockRepository(storage: Storage): WorkspaceRepository {
   let state: WorkspaceState = initialState();
   try {
-    const saved = JSON.parse(
-      storage.getItem(STORAGE_KEY) ?? "null",
-    ) as WorkspaceState | null;
-    if (
-      saved?.version === 1 &&
-      Array.isArray(saved.tasks) &&
-      Array.isArray(saved.proposals) &&
-      Array.isArray(saved.questions) &&
-      Array.isArray(saved.seenProposalIds)
-    )
-      state = saved;
+    const raw =
+      storage.getItem(STORAGE_KEY) ?? storage.getItem("larda.workspace.v1");
+    if (raw) state = migrateState(JSON.parse(raw));
   } catch {
     /* An unavailable or old session starts with the demo fixtures. */
   }
@@ -47,6 +48,7 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
     listeners.forEach((listener) => listener());
   };
   const ownTask = (id: string): Task => {
+    if (state.role === "student") throw new Error("Выберите роль бизнеса.");
     const task = state.tasks.find((t) => t.id === id);
     if (!task || task.ownerId !== BUSINESS_USER_ID)
       throw new Error("Задача не найдена в вашем кабинете.");
@@ -58,6 +60,7 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
   });
   return {
     getSnapshot: () => state,
+    getProgressionExample: progressionExample,
     subscribe: (listener) => {
       listeners.add(listener);
       return () => {
@@ -109,7 +112,10 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
         ...calculateReadiness(card),
       });
       if (!next.questions.some((q) => q.taskId === id))
-        next.questions = [...next.questions, ...questionsFor(id)];
+        next.questions = [
+          ...next.questions,
+          ...localAssistant({ taskId: id, card }),
+        ];
       commit(next);
     },
     async answerQuestion(id, answer) {
@@ -131,17 +137,41 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
         ),
       });
     },
-    async updateCard(id, card) {
+    async updateCard(id, card, skills) {
       const task = ownTask(id);
-      if (task.publicationStatus !== "draft")
-        throw new Error("Эта задача уже опубликована.");
+      if (task.executionStatus !== "not_started")
+        throw new Error(
+          "Согласованная задача зафиксирована после начала проекта.",
+        );
       const trimmed = Object.fromEntries(
-        Object.entries(card).map(([k, v]) => [k, v.trim()]),
+        Object.keys(emptyCard()).map((k) => [
+          k,
+          card[k as keyof TaskCard].trim(),
+        ]),
       ) as unknown as typeof card;
+      if (
+        task.publicationStatus === "published" &&
+        (!trimmed.title || !trimmed.context)
+      )
+        throw new Error(
+          "У опубликованной задачи должны оставаться название и контекст.",
+        );
       commit({
         ...replaceTask({
           ...task,
-          draftCard: trimmed,
+          skills: skills
+            ? [...new Set(skills.map((s) => s.trim()).filter(Boolean))].slice(
+                0,
+                12,
+              )
+            : task.skills,
+          ...(task.publicationStatus === "draft"
+            ? { draftCard: trimmed }
+            : {
+                ...trimmed,
+                draftCard: null,
+                confirmedAt: new Date().toISOString(),
+              }),
           ...calculateReadiness(trimmed),
         }),
         questions: state.questions.map((q) =>
@@ -149,13 +179,13 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
         ),
       });
     },
-    async publish(id) {
+    async publish(id, confirmed) {
       const task = ownTask(id);
       if (task.publicationStatus !== "draft")
         throw new Error("Задача уже опубликована.");
-      if (!taskReady(task, state.questions))
+      if (!confirmed || !taskReady(task, state.questions))
         throw new Error(
-          "Ответьте на вопросы и заполните задачу минимум на 70 баллов.",
+          "Добавьте название, контекст и подтвердите карточку перед публикацией.",
         );
       const now = new Date().toISOString();
       commit({
@@ -171,6 +201,7 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
       });
     },
     async submitProposal(taskId, input) {
+      if (state.role !== "student") throw new Error("Выберите роль студента.");
       const task = state.tasks.find((t) => t.id === taskId);
       if (
         !task ||
@@ -203,7 +234,7 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
         input.durationDays < 1
       )
         throw new Error("Заполните идею, план и срок в днях.");
-      if (input.prototypeUrl && !/^https?:\/\//i.test(input.prototypeUrl))
+      if (input.prototypeUrl && !httpUrl(input.prototypeUrl))
         throw new Error("Ссылка должна начинаться с https:// или http://.");
       commit({
         ...state,
@@ -248,6 +279,39 @@ export function createMockRepository(storage: Storage): WorkspaceRepository {
               }
             : p,
         ),
+      });
+    },
+    async startProject(id, inputs) {
+      commit(startProject(state, id, inputs, new Date().toISOString()));
+    },
+    async submitMilestone(projectId, milestoneId, input) {
+      commit(
+        submitMilestone(
+          state,
+          projectId,
+          milestoneId,
+          input,
+          crypto.randomUUID(),
+          new Date().toISOString(),
+        ),
+      );
+    },
+    async reviewSubmission(id, input) {
+      const next = reviewSubmission(state, id, input, new Date().toISOString());
+      if (next !== state) commit(next);
+    },
+    async acknowledgeProgression(ids) {
+      if (state.role !== "student") throw new Error("Выберите роль студента.");
+      const valid = ids.filter((id) =>
+        state.xpTransactions.some(
+          (t) => t.id === id && t.userId === STUDENT_USER_ID,
+        ),
+      );
+      commit({
+        ...state,
+        acknowledgedTransactionIds: [
+          ...new Set([...state.acknowledgedTransactionIds, ...valid]),
+        ],
       });
     },
     async markResponsesSeen(taskId) {

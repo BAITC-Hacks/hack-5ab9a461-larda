@@ -1,3 +1,6 @@
+import { ConnectedPage } from "../features/connected/ConnectedPage";
+import { ProjectPage } from "../features/projects/ProjectPage";
+import { StudentPage } from "../features/student/StudentPage";
 import { Route, Routes } from "react-router-dom";
 import { AppShell } from "./AppShell";
 import { RolePage } from "../features/business/RolePage";
@@ -12,6 +15,7 @@ import { ActionLink, EmptyState } from "../shared/ui/controls";
 export function AppRoutes() {
   return (
     <Routes>
+      <Route path="connected" element={<ConnectedPage />} />
       <Route element={<AppShell />}>
         <Route index element={<RolePage />} />
         <Route path="business" element={<BusinessPage />} />
@@ -21,6 +25,15 @@ export function AppRoutes() {
         <Route
           path="business/tasks/:id/responses"
           element={<ResponsesPage />}
+        />
+        <Route path="student" element={<StudentPage />} />
+        <Route path="student/catalog" element={<CatalogPage />} />
+        <Route path="student/catalog/:id" element={<TaskDetail />} />
+        <Route path="student/example" element={<StudentPage example />} />
+        <Route path="student/projects/:proposalId" element={<ProjectPage />} />
+        <Route
+          path="business/projects/:proposalId"
+          element={<ProjectPage business />}
         />
         <Route path="catalog" element={<CatalogPage />} />
         <Route path="catalog/:id" element={<TaskDetail />} />

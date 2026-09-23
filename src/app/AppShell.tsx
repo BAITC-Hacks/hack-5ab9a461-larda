@@ -9,14 +9,17 @@ export function AppShell() {
   const business =
     pathname.startsWith("/business") ||
     (pathname.startsWith("/catalog") && state.role === "business");
+  const student =
+    pathname.startsWith("/student") ||
+    (pathname.startsWith("/catalog") && !business);
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
     const main = document.getElementById("main-content");
     main?.focus({ preventScroll: true });
-    document.title = `${pathname.startsWith("/catalog") ? "Задачи от бизнеса" : pathname === "/" ? "Выберите роль" : "Кабинет бизнеса"} — Larda`;
-  }, [pathname]);
+    document.title = `${pathname.startsWith("/catalog") || pathname.startsWith("/student/catalog") ? "Каталог задач" : student ? "Прогресс студента" : pathname === "/" ? "Выберите роль" : "Кабинет бизнеса"} — Larda`;
+  }, [pathname, student]);
   return (
-    <>
+    <div className="app-theme">
       <a className="skip-link" href="#main-content">
         Перейти к содержимому
       </a>
@@ -37,7 +40,14 @@ export function AppShell() {
                     <NavLink to="/business/tasks">Мои задачи</NavLink>
                   </>
                 )}
-                <NavLink to="/catalog">Каталог задач</NavLink>
+                {student && (
+                  <NavLink to="/student" end>
+                    Рабочий стол
+                  </NavLink>
+                )}
+                <NavLink to={student ? "/student/catalog" : "/catalog"}>
+                  Каталог задач
+                </NavLink>
               </nav>
               <div className="header-actions">
                 {business && (
@@ -66,8 +76,10 @@ export function AppShell() {
       </main>
       <footer className="site-footer">
         <span>Larda · Бизнес и студенческие команды</span>
-        <span>Демонстрационный кабинет · данные в этой вкладке</span>
+        <span>
+          Локальное демо · подтверждения без авторизации · данные в этой вкладке
+        </span>
       </footer>
-    </>
+    </div>
   );
 }

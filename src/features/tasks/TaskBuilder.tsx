@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, useSearchParams } from "react-router-dom";
 import { useWorkspace } from "../../app/WorkspaceProvider";
-import { cardOf, scoreRules } from "../../domain/taskRules";
+import { cardOf } from "../../domain/taskRules";
 import {
   BUSINESS_USER_ID,
   type Task,
@@ -77,12 +77,14 @@ function Builder({ task }: { task: Task }) {
   const activeQuestion =
     questions.find((q) => q.id === editingQuestion) ?? current;
   const answer = async (question: TaskQuestion, value: string) => {
+    const before = task.readinessScore;
     await repository.answerQuestion(question.id, value);
+    const after = repository
+      .getSnapshot()
+      .tasks.find((t) => t.id === task.id)!.readinessScore;
     setEditingQuestion(null);
     action.confirm(
-      question.answer
-        ? "Ответ сохранён"
-        : `Ответ сохранён. +${question.gain}: ${scoreRules.find((rule) => rule.field === question.fieldKey)?.label.toLowerCase() ?? "добавлены сведения"}`,
+      `Ответ сохранён. Готовность: ${before} → ${after} (${after - before >= 0 ? "+" : ""}${after - before})`,
     );
   };
   return (
@@ -104,6 +106,9 @@ function Builder({ task }: { task: Task }) {
         </div>
         <span className="status status--pending">Черновик</span>
       </div>
+      <ActionLink to={`/business/tasks/${task.id}`}>
+        Проверить карточку · можно оставить уточнения на потом
+      </ActionLink>
       <ol className="stepper" aria-label="Шаги создания">
         <li className={!questions.length ? "current" : "done"}>
           1. Опишите проблему
@@ -278,7 +283,7 @@ function Builder({ task }: { task: Task }) {
           />
           <p className="field-help">
             {task.readinessScore >= 70
-              ? "Информации достаточно для публикации."
+              ? "Задача хорошо подготовлена для команды."
               : "Ответы помогут команде предложить реалистичное решение."}
           </p>
           <TaskBrief card={card} compact />
@@ -308,7 +313,7 @@ function QuestionForm({
     >
       <div className="question-card__top">
         <span className="overline">Уточнение {question.position}</span>
-        <span className="score-gain">+{question.gain} к готовности</span>
+        <span className="score-gain">Заполнение карточки</span>
       </div>
       <label className="field">
         <span className="question-title">{question.question}</span>

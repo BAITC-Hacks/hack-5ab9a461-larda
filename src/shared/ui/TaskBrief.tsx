@@ -2,6 +2,9 @@ import type { TaskCard } from "../../domain/models";
 
 export const cardFields: { key: keyof TaskCard; label: string }[] = [
   { key: "context", label: "Как объяснил бизнес" },
+  { key: "need", label: "Что нужно изменить" },
+  { key: "targetUsers", label: "Для кого решение" },
+  { key: "contact", label: "Контакт для связи" },
   { key: "expectedResult", label: "Что нужно сделать команде" },
   { key: "successCriteria", label: "Как оценить результат" },
   { key: "availableData", label: "Данные от компании" },

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { useWorkspace } from "../../app/WorkspaceProvider";
 import { STUDENT_TEAM_ID, type ProposalInput } from "../../domain/models";
 import {
@@ -16,6 +16,10 @@ import { SaveConfirmation } from "../../shared/motion/SaveConfirmation";
 
 export function TaskDetail() {
   const { id } = useParams();
+  const { pathname } = useLocation();
+  const catalogPath = pathname.startsWith("/student")
+    ? "/student/catalog"
+    : "/catalog";
   const { state, repository } = useWorkspace();
   const task = state.tasks.find(
     (t) => t.id === id && t.publicationStatus === "published",
@@ -26,7 +30,7 @@ export function TaskDetail() {
     return (
       <EmptyState title="Задача недоступна">
         <p>Она ещё не опубликована или уже убрана из каталога.</p>
-        <ActionLink to="/catalog">К каталогу задач</ActionLink>
+        <ActionLink to={catalogPath}>К каталогу задач</ActionLink>
       </EmptyState>
     );
   const response = state.proposals.find(
@@ -37,7 +41,7 @@ export function TaskDetail() {
   );
   return (
     <>
-      <PageTrail title={task.title} to="/catalog" label="К каталогу задач" />
+      <PageTrail title={task.title} to={catalogPath} label="К каталогу задач" />
       <div className="page-heading">
         <div>
           <p className="overline">{task.industry}</p>
@@ -59,6 +63,12 @@ export function TaskDetail() {
             value={task.readinessScore}
             label="Готовность задачи"
           />
+          {state.role !== "business" && (
+            <p className="xp-reward">
+              До 800 XP каждому подтверждённому участнику
+            </p>
+          )}
+          <p>{task.skills.join(" · ")}</p>
           <h2>Предложите свой подход</h2>
           <p>
             Расскажите, что сделает ваша команда, сколько времени понадобится и
@@ -83,7 +93,12 @@ export function TaskDetail() {
                 <br />
                 {response.solutionIdea}
               </p>
-              <ActionLink to="/catalog">Посмотреть другие задачи</ActionLink>
+              {response.status === "accepted" && (
+                <ActionLink to={`/student/projects/${response.id}`}>
+                  Открыть миссию
+                </ActionLink>
+              )}
+              <ActionLink to={catalogPath}>Посмотреть другие задачи</ActionLink>
             </div>
           ) : selected || task.executionStatus !== "not_started" ? (
             <p className="helper-note">Приём откликов завершён.</p>
@@ -99,7 +114,7 @@ export function TaskDetail() {
             </Button>
           ) : !formOpen ? (
             <Button className="full-width" onClick={() => setFormOpen(true)}>
-              Откликнуться на задачу
+              Подать предложение
             </Button>
           ) : (
             <p className="helper-note">

@@ -37,7 +37,7 @@ test("full task → questions → publish → proposal → manual selection with
   ).toBeVisible();
   await expect(
     page.getByRole("progressbar", { name: "Готовность задачи", exact: true }),
-  ).toHaveAttribute("aria-valuenow", "25");
+  ).toHaveAttribute("aria-valuenow", "10");
   const draftUrl = page.url();
   const answers = [
     "Прототип списка входящих заявок с загрузкой сообщений.",
@@ -49,7 +49,7 @@ test("full task → questions → publish → proposal → manual selection with
     await page.getByRole("button", { name: /Сохранить и продолжить/ }).click();
     await expect(
       page.getByRole("progressbar", { name: "Готовность задачи", exact: true }),
-    ).toHaveAttribute("aria-valuenow", String([45, 60, 75][index]));
+    ).toHaveAttribute("aria-valuenow", String([25, 40, 60][index]));
     if (index === 0) {
       await page.reload();
       await expect(page).toHaveURL(draftUrl);
@@ -58,12 +58,12 @@ test("full task → questions → publish → proposal → manual selection with
           name: "Готовность задачи",
           exact: true,
         }),
-      ).toHaveAttribute("aria-valuenow", "45");
+      ).toHaveAttribute("aria-valuenow", "25");
     }
   }
   await expect(
     page.locator(".task-preview .motion-progress__caption strong"),
-  ).toHaveText("75 из 100");
+  ).toHaveText("60 из 100");
   await page.screenshot({
     path: testInfo.outputPath("builder-desktop.png"),
     fullPage: true,
@@ -75,19 +75,20 @@ test("full task → questions → publish → proposal → manual selection with
   await page
     .getByLabel("Формат работы", { exact: true })
     .fill("Один созвон в неделю.");
-  await page.getByRole("button", { name: "Сохранить изменения" }).click();
+  await page.getByRole("button", { name: "Подтвердить изменения" }).click();
   await expect(
     page.getByRole("progressbar", { name: "Готовность задачи", exact: true }),
-  ).toHaveAttribute("aria-valuenow", "85");
+  ).toHaveAttribute("aria-valuenow", "65");
+  await page.getByRole("checkbox", { name: /Я проверил/ }).check();
   await page
     .getByRole("button", { name: "Опубликовать задачу", exact: true })
     .click();
-  await expect(page.locator(".success-copy")).toHaveText(
-    "✓ Задача опубликована",
+  await expect(page.locator(".page-heading .status")).toHaveText(
+    "● Опубликована",
   );
   await page.reload();
-  await expect(page.locator(".success-copy")).toHaveText(
-    "✓ Задача опубликована",
+  await expect(page.locator(".page-heading .status")).toHaveText(
+    "● Опубликована",
   );
   await page.getByRole("link", { name: "Посмотреть в каталоге" }).click();
   const detailUrl = page.url();
@@ -98,7 +99,7 @@ test("full task → questions → publish → proposal → manual selection with
   await page
     .getByRole("button", { name: "Перейти к отклику как студент" })
     .click();
-  await page.getByRole("button", { name: "Откликнуться на задачу" }).click();
+  await page.getByRole("button", { name: "Подать предложение" }).click();
   await page
     .getByLabel("Идея решения", { exact: true })
     .fill("Сделаем импорт сообщений и таблицу заявок.");
@@ -118,7 +119,7 @@ test("full task → questions → publish → proposal → manual selection with
   );
   await page.getByRole("link", { name: "Larda — выбор роли" }).click();
   await page.getByRole("button", { name: /Я представляю бизнес/ }).click();
-  await page.getByRole("link", { name: "Отклики команд · 3" }).click();
+  await page.getByRole("link", { name: "Отклики команд" }).click();
   await page
     .locator(".task-row")
     .filter({ hasText: "Учёт заявок магазина" })
@@ -143,9 +144,9 @@ test("full task → questions → publish → proposal → manual selection with
     "Ваша команда выбрана",
   );
   await page.goto("/catalog");
-  await expect(page.locator(".catalog-card").first()).toContainText(
-    "Учёт заявок магазина",
-  );
+  await expect(
+    page.locator(".catalog-card").filter({ hasText: "Учёт заявок магазина" }),
+  ).toHaveCount(1);
   expect(errors).toEqual([]);
 });
 
@@ -218,7 +219,7 @@ test("reduced motion, keyboard access and mobile layout", async ({
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL("/business");
   await expect(
-    page.getByRole("heading", { name: "Что вы хотите сделать?" }),
+    page.getByRole("heading", { name: "Ваши решения двигают проекты" }),
   ).toBeVisible();
   await expect(page.locator(".motion-page-enter")).toHaveCSS(
     "animation-name",
@@ -245,7 +246,7 @@ test("reduced motion, keyboard access and mobile layout", async ({
   ).toBe(true);
 });
 
-test("unfinished task cannot be published, entered data is not fabricated", async ({
+test("low readiness needs confirmation, drafts private, published tasks open to proposals", async ({
   page,
 }) => {
   await page.goto("/business/new");
@@ -264,4 +265,19 @@ test("unfinished task cannot be published, entered data is not fabricated", asyn
   await expect(
     page.getByRole("heading", { name: "Задача недоступна" }),
   ).toBeVisible();
+  await page.goto(`/business/tasks/${taskId}`);
+  await page.getByRole("checkbox", { name: /Я проверил/ }).check();
+  await page
+    .getByRole("button", { name: "Опубликовать задачу", exact: true })
+    .click();
+  await page.goto(`/catalog/${taskId}`);
+  await expect(
+    page.getByRole("progressbar", { name: "Готовность задачи" }),
+  ).toHaveAttribute("aria-valuenow", "10");
+  await page
+    .getByRole("button", { name: "Перейти к отклику как студент" })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Подать предложение" }),
+  ).toBeEnabled();
 });

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useWorkspace } from "../../app/WorkspaceProvider";
-import { ErrorMessage, useAction } from "../../shared/ui/controls";
+import { ActionLink, ErrorMessage, useAction } from "../../shared/ui/controls";
 import type { Role } from "../../domain/models";
 
 export function RolePage() {
@@ -10,7 +10,7 @@ export function RolePage() {
   const choose = (role: Role) =>
     action.run(async () => {
       await repository.setRole(role);
-      navigate(role === "business" ? "/business" : "/catalog");
+      navigate(role === "business" ? "/business" : "/student");
     });
   return (
     <section className="role-page">
@@ -57,6 +57,9 @@ export function RolePage() {
         </button>
       </div>
       <ErrorMessage message={action.error} />
+      <ActionLink to="/connected">
+        Открыть серверный кабинет (backend + AI)
+      </ActionLink>
       <p className="role-footnote">Роль можно сменить в любой момент.</p>
     </section>
   );
