@@ -11,6 +11,7 @@ erDiagram
 
     USERS ||--o{ TASKS : owns
     TASKS ||--o{ TASK_QUESTIONS : has
+    TASKS ||--o{ AI_JOBS : checks
 
     TASKS ||--o{ PROPOSALS : receives
     TEAMS ||--o{ PROPOSALS : submits
@@ -88,6 +89,11 @@ erDiagram
         text feedback_process
 
         jsonb draft_card "nullable, includes draft tag_ids"
+        jsonb draft_evaluation "nullable, private preview"
+        bigint revision "optimistic edit version"
+        bigint evaluated_revision "nullable"
+        varchar ai_status "pending | running | succeeded | failed"
+        text ai_error
         varchar publication_status "draft | published | archived"
         smallint readiness_score "0 to 100"
         jsonb score_breakdown
@@ -108,6 +114,21 @@ erDiagram
         varchar field_key
         text question
         text answer "nullable"
+    }
+
+    AI_JOBS {
+        bigint id PK
+        bigint task_id FK
+        bigint revision "unique with task_id"
+        varchar kind "questions | generate | evaluate"
+        varchar status "pending | running | succeeded | failed | superseded"
+        integer attempts
+        text error
+        jsonb input "immutable revision snapshot"
+        jsonb result "nullable"
+        text lease_token
+        timestamptz created_at
+        timestamptz updated_at
     }
 
     PROPOSALS {
@@ -142,6 +163,9 @@ erDiagram
         timestamptz submitted_at "nullable"
         bigint completed_by FK "nullable"
         timestamptz completed_at "nullable"
+        bigint proposed_by FK
+        bigint approved_by FK "nullable"
+        timestamptz approved_at "nullable"
     }
 
     ACHIEVEMENTS {
@@ -175,4 +199,4 @@ erDiagram
 
         timestamptz created_at
     }
-    ​```
+```
