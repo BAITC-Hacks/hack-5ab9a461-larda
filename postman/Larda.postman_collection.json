@@ -3,7 +3,7 @@
     "_postman_id": "d366aef3-c82c-4f3d-a75a-9734bfb8c16a",
     "name": "Larda - Complete Backend API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "# Larda frontend API test collection\n\nContains all 39 registered HTTP endpoints, plus ordered branches that demonstrate valid state transitions. Import this collection; the optional environment contains only base_url and demo identities. Collection defaults work without an environment.\n\n## Run the full workflow\n1. Start a seeded backend and PostgreSQL. Use backend AI_MODE=fallback for a free local demonstration. OPENAI_API_KEY belongs only in the backend .env. With AI_MODE=openai, task creation, answering, edits and retries may spend OpenAI credits.\n2. Run folder **01 Full workflow** in Collection Runner with **one iteration and 1000 ms request delay**. Or run:\n   `newman run postman/Larda.postman_collection.json --folder \"01 Full workflow\" --delay-request 1000 --timeout-request 10000`\n3. Do not run requests in parallel. The collection creates fresh teams/tasks, discovers real tag/question IDs, captures response IDs and owner revisions, polls async AI, publishes a task, exercises team/captain changes, completes milestones and task, and handles cancellation on separate entities. Each run adds demo records and EXP and replaces the two students' tags.\n4. Polls stop after poll_max_attempts (default 180) and fail/stop on failed AI. Only Runner/CLI/Newman follows setNextRequest loops; with Send, repeat polling manually until succeeded before continuing.\n5. Run the whole collection to include the optional retry folder; it is skipped by default. Require a current Postman or Newman runtime with pm.execution.setNextRequest and pm.execution.skipRequest.\n\n## Optional failed-AI retry\nSet collection variable retry_task_id to an owned, editable task with ai_status=failed, then run folder **02 Optional failed AI retry** with the same delay. The folder verifies the precondition, retries, polls, then clears retry_task_id on success. It never assumes a reusable seeded failed task. Repair provider settings or choose explicit fallback first. Normal failure is not silently replaced with fallback.\n\n## Variables and identity\nbase_url is the origin only (default http://localhost:8080). Business=1, captain=2, ordinary student=3. Captain/student are globally students; captain permission is per-team. Public requests omit X-Demo-User-ID. There is no bearer token or OpenAI key in this collection.\n\nKeep dynamic IDs/revision/answers as **collection variables**. Do not add them to an environment, globals or Runner data: higher-priority stale values can shadow captured values. Only owner task responses save revisions; public tasks have revision=0. Success statuses are asserted exactly (200/201/202/204), JSON response shapes are checked, and 204 is checked for an empty body.\n\nThe collection tests valid workflows, not every negative authorization/concurrency case. Failed requests stop the current iteration to prevent cascading writes. For all payload/response contracts see ../json.md and ../for_frontend.md.\n\nPostman workflow reference: https://learning.postman.com/docs/tests-and-scripts/running-collections/building-workflows\nPostman execution reference: https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution"
+    "description": "# Larda frontend API test collection\n\nContains all 39 registered HTTP endpoints, plus ordered branches that demonstrate valid state transitions. Import this collection; the optional environment contains only base_url and demo identities. Collection defaults work without an environment.\n\n## Run the full workflow\n1. Start a seeded backend and PostgreSQL. Use backend AI_MODE=fallback for a free local demonstration. OPENAI_API_KEY belongs only in the backend .env. With AI_MODE=openai, task creation, answering, edits and retries may spend OpenAI credits.\n2. Run folder **01 Full workflow** in Collection Runner with **one iteration and 1000 ms request delay**. Or run:\n   `newman run postman/Larda.postman_collection.json --folder \"01 Full workflow\" --delay-request 1000 --timeout-request 10000`\n3. Do not run requests in parallel. The collection creates fresh teams/tasks, discovers real tag/question IDs, captures response IDs and owner revisions, polls async AI, publishes a task, exercises team/captain changes, completes milestones and task, and handles cancellation on separate entities. Each run adds demo records and EXP and replaces the two students' tags.\n4. Polls stop after poll_max_attempts (default 180) and fail/stop on failed AI. Only Runner/CLI/Newman follows setNextRequest loops; with Send, repeat polling manually until succeeded before continuing.\n5. Run the optional retry folder separately when needed. Run only the named scenario folders, not the entire collection: the resource catalog contains manual requests and alternative lifecycle actions. Require a current Postman or Newman runtime with pm.execution.setNextRequest and pm.execution.skipRequest.\n\n## Optional failed-AI retry\nSet collection variable retry_task_id to an owned, editable task with ai_status=failed, then run folder **02 Optional failed AI retry** with the same delay. The folder verifies the precondition, retries, polls, then clears retry_task_id on success. It never assumes a reusable seeded failed task. Repair provider settings or choose explicit fallback first. Normal failure is not silently replaced with fallback.\n\n## Browse endpoints by resource\nOpen **03 Endpoints by resource** for all 39 endpoints in Health, Users, Reference data, Tasks, AI, Teams, Proposals and Milestones. Use individual Send requests and fill the manual_* collection variables with real IDs and current revision. Each request documents access, preconditions and success status. These requests have no workflow scripts or automatic variable capture.\n\n## Variables and identity\nbase_url is the origin only (default http://localhost:8080). Business=1, captain=2, ordinary student=3. Captain/student are globally students; captain permission is per-team. Public requests omit X-Demo-User-ID. There is no bearer token or OpenAI key in this collection.\n\nKeep dynamic IDs/revision/answers as **collection variables**. Do not add them to an environment, globals or Runner data: higher-priority stale values can shadow captured values. Only owner task responses save revisions; public tasks have revision=0. In the automated scenario folders, success statuses are asserted exactly (200/201/202/204), JSON response shapes are checked, and 204 is checked for an empty body.\n\nThe collection tests valid workflows, not every negative authorization/concurrency case. Failed requests stop the current iteration to prevent cascading writes. For all payload/response contracts see ../json.md and ../for_frontend.md.\n\nPostman workflow reference: https://learning.postman.com/docs/tests-and-scripts/running-collections/building-workflows\nPostman execution reference: https://learning.postman.com/docs/tests-and-scripts/write-scripts/postman-sandbox-reference/pm-execution"
   },
   "auth": {
     "type": "noauth"
@@ -134,6 +134,48 @@
       "value": "",
       "type": "string",
       "description": "JSON body generated from all actual clarification question IDs."
+    },
+    {
+      "key": "manual_user_id",
+      "value": "3",
+      "type": "string",
+      "description": "Profile or team member ID for manual requests. Change before adding/removing a member or transferring captaincy."
+    },
+    {
+      "key": "manual_task_id",
+      "value": "",
+      "type": "string",
+      "description": "Task ID for the resource catalog. Copy from a task list or creation response."
+    },
+    {
+      "key": "manual_revision",
+      "value": "1",
+      "type": "string",
+      "description": "Current task revision from GET task with the owner header. Refresh after every edit; 1 is only an example."
+    },
+    {
+      "key": "manual_team_id",
+      "value": "",
+      "type": "string",
+      "description": "Team ID for the resource catalog. Copy from the team list or creation response."
+    },
+    {
+      "key": "manual_proposal_id",
+      "value": "",
+      "type": "string",
+      "description": "Proposal ID for the resource catalog. Copy from a proposal list or creation response."
+    },
+    {
+      "key": "manual_milestone_id",
+      "value": "",
+      "type": "string",
+      "description": "Milestone ID for the resource catalog. Copy from proposal.milestones or a creation response."
+    },
+    {
+      "key": "manual_tag_ids",
+      "value": "[]",
+      "type": "string",
+      "description": "JSON array of existing tag IDs for manual requests, e.g. [1,2]. Empty array clears tags on replacement/patch."
     }
   ],
   "item": [
@@ -2180,7 +2222,7 @@
                 "proposals"
               ]
             },
-            "description": "Only the team's captain can submit. Each team can have one proposal per task. prototype_url may be empty or an http(s) URL.",
+            "description": "Only the team's captain can submit. A team can submit multiple proposals to the same task. prototype_url may be empty or an http(s) URL.",
             "body": {
               "mode": "raw",
               "raw": "{\n  \"team_id\": {{team_id}},\n  \"solution_idea\": \"Build a CSV import and inventory dashboard with low-stock alerts.\",\n  \"plan\": \"Agree the data format, deliver an import prototype, then build and demonstrate the dashboard.\",\n  \"duration_days\": 14,\n  \"prototype_url\": \"https://example.com/larda/inventory-prototype\"\n}",
@@ -3786,6 +3828,1328 @@
             }
           ],
           "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Endpoints by resource",
+      "description": "All 39 endpoints, grouped by resource for manual Send requests. This folder is an endpoint reference, not an ordered Runner scenario.\n\nSet base_url and demo identities, then fill the relevant manual_* collection variables. Resource IDs start blank; copy real IDs from list/create responses. manual_user_id=3 and manual_revision=1 are examples. Refresh manual_revision using Tasks / Get task with the business header after changes. Edit bodies before sending, especially every question ID and answer in AI / Submit clarification answers.\n\nRequests have headers and JSON examples but no workflow scripts, variable capture or automatic polling. Business=business_id, captain=captain_id, ordinary student=student_id; captain rights depend on the selected team. The variables are separate from the automated workflow.\n\nRun only 01 Full workflow for the automated scenario, or 02 Optional failed AI retry for retry testing. Do not run the entire collection as a sequence: this reference contains alternative lifecycle actions. Use backend AI_MODE=fallback for local testing without OpenAI calls. See json.md and for_frontend.md for full contracts and application behavior.",
+      "item": [
+        {
+          "name": "01 Health",
+          "description": "Process, database and readiness checks; no identity required.",
+          "item": [
+            {
+              "id": "54d523bd-d24e-4e41-891b-feafcab76014",
+              "name": "GET Liveness",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/livez",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "livez"
+                  ]
+                },
+                "description": "Checks that the API process is running.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "76f0cab3-00bb-4ca9-857c-93f9dae8d32c",
+              "name": "GET Database health",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/healthz",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "healthz"
+                  ]
+                },
+                "description": "Checks database availability; returns 503 if unavailable.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "822069e2-4d29-4f48-8a14-7dff27c6df4c",
+              "name": "GET Readiness",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/readyz",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "readyz"
+                  ]
+                },
+                "description": "Checks whether the API is ready to serve database-backed requests.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "02 Users",
+          "description": "Demo users, profiles, EXP history and student skill tags.",
+          "item": [
+            {
+              "id": "45f76914-41f3-4a17-a95b-373f700480f8",
+              "name": "GET List users",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users"
+                  ]
+                },
+                "description": "Lists demo identities; discover real IDs here.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "054ff41d-c8ae-4d60-8ad5-ed5c64a9043c",
+              "name": "GET Get user profile",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/{{manual_user_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "{{manual_user_id}}"
+                  ]
+                },
+                "description": "Returns the selected user, skill tags, achievements and EXP history.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "b0507857-d6e8-43fb-ae28-a35a6df286a1",
+              "name": "PUT Replace my skill tags",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/users/me/tags",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "users",
+                    "me",
+                    "tags"
+                  ]
+                },
+                "description": "Student only. Replaces all tags of the acting student. Set manual_tag_ids to existing IDs from Reference data / List tags. [] clears them; change the identity header to student_id to edit the other student.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 204. No response body.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"tag_ids\": {{manual_tag_ids}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "03 Reference data",
+          "description": "Shared catalogs used by task cards, profiles and team screens.",
+          "item": [
+            {
+              "id": "93c52108-dec4-40b6-88f1-2564f506fb06",
+              "name": "GET List tags",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tags",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tags"
+                  ]
+                },
+                "description": "Lists available tags. Copy their numeric IDs into manual_tag_ids where needed.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "65b87412-9134-46c9-b7b5-07ffbfa5706d",
+              "name": "GET List achievements",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/achievements",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "achievements"
+                  ]
+                },
+                "description": "Lists achievement definitions; join profile achievement IDs to this catalog.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "04 Tasks",
+          "description": "Task catalog and business card lifecycle. AI questions, answers and jobs are in the AI folder. Owner mutations require the correct task state.",
+          "item": [
+            {
+              "id": "c211035b-2b3d-4aa7-8b22-bcbe598c8078",
+              "name": "GET List published tasks",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks?limit=20&offset=0",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks"
+                  ],
+                  "query": [
+                    {
+                      "key": "industry",
+                      "value": "Retail",
+                      "disabled": true
+                    },
+                    {
+                      "key": "topic",
+                      "value": "Analytics",
+                      "disabled": true
+                    },
+                    {
+                      "key": "tag_ids",
+                      "value": "1,2",
+                      "disabled": true
+                    },
+                    {
+                      "key": "readiness",
+                      "value": "ready",
+                      "description": "draft | working | ready | priority",
+                      "disabled": true
+                    },
+                    {
+                      "key": "limit",
+                      "value": "20"
+                    },
+                    {
+                      "key": "offset",
+                      "value": "0"
+                    }
+                  ]
+                },
+                "description": "Lists published snapshots. Optional industry, topic, tag_ids and readiness filters are disabled in Params; enable and edit them as needed. Multiple tag IDs use AND matching. Readiness accepts draft, working, ready or priority. Pagination uses limit and offset.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "c98b7635-77d1-4b75-8ed8-a81d71152eb4",
+              "name": "GET List my tasks",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/mine",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "mine"
+                  ]
+                },
+                "description": "Business only. Lists the owner's tasks, including private drafts and archives.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "f6d5cc6d-2b63-4ddb-b573-5b98f4fee85f",
+              "name": "GET Get task",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}"
+                  ]
+                },
+                "description": "With the owner business header, returns current revision, draft and AI status. Remove the header for the public view of a published task. Use this request manually to check AI progress; copy revision into manual_revision before saving or confirming.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "ba4f0849-5659-49f4-9a43-986acf7fe063",
+              "name": "POST Create task",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks"
+                  ]
+                },
+                "description": "Business only. Saves raw_description and queues initial AI questions/evaluation. Copy response id to manual_task_id and revision to manual_revision. Poll Get task manually until AI succeeds. Uses the configured backend AI mode.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 202.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"raw_description\": \"Build an inventory dashboard for our small retail business. Store managers currently compare weekly stock and sales manually. We need a working web prototype that highlights low-stock products using an anonymized CSV export, within 14 days.\",\n  \"industry\": \"Retail\",\n  \"topic\": \"Analytics\",\n  \"tag_ids\": {{manual_tag_ids}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "4ca16ad6-cd68-443e-8c4f-58f11ae7d51f",
+              "name": "PATCH Update task draft",
+              "request": {
+                "method": "PATCH",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}"
+                  ]
+                },
+                "description": "Owner only. Send the current manual_revision and any subset of editable fields. Each successful edit increments revision and queues AI evaluation. Copy the new revision; wait for AI before confirming. Confirmed public content changes on confirmation.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 202.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"revision\": {{manual_revision}},\n  \"title\": \"Inventory dashboard for store managers\",\n  \"context\": \"Store managers currently combine weekly inventory and sales CSV exports manually.\",\n  \"need\": \"Reduce weekly inventory review from two hours to 30 minutes and identify products requiring replenishment.\",\n  \"target_users\": \"Three store managers using desktop web browsers.\",\n  \"available_data\": \"An anonymized CSV sample with product_id, product_name, stock_quantity and weekly_units_sold is provided in a private project repository.\",\n  \"constraints\": \"Deliver a working prototype in 14 days. Use anonymized CSV data and no production-system access.\",\n  \"expected_result\": \"A working web dashboard, repository, CSV import instructions and a short demo.\",\n  \"success_criteria\": \"Import the sample CSV, display every product, and flag all products with less than one week of stock.\",\n  \"contact\": \"product.owner@example.com\",\n  \"interaction_format\": \"Weekly 30-minute video call plus asynchronous project chat.\",\n  \"feedback_process\": \"The business owner reviews each demo within two working days.\",\n  \"tag_ids\": {{manual_tag_ids}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "49dd300e-c8ca-41ce-abac-b97ffca15e82",
+              "name": "POST Confirm evaluated draft",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/confirm",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "confirm"
+                  ]
+                },
+                "description": "Owner only. Requires a successful evaluation for manual_revision and a nonblank title. Copies the draft and score into the confirmed card; a new task must still be published.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"revision\": {{manual_revision}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "350f24ac-3a58-4775-8054-12d629cc2894",
+              "name": "POST Publish task",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/publish",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "publish"
+                  ]
+                },
+                "description": "Owner only. Publishes a confirmed card; may also republish an archived task. No request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "7ef37b7f-061f-43ce-a671-08469f076031",
+              "name": "POST Archive task",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/archive",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "archive"
+                  ]
+                },
+                "description": "Owner only. Hides the task from the public catalog; no request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "e672777f-aa4e-469e-ad88-4243fc32b632",
+              "name": "POST Complete task",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/complete",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "complete"
+                  ]
+                },
+                "description": "Owner only. Requires at least one completed proposal and all accepted proposals completed or cancelled. Completes execution and awards applicable rewards. No request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "db6fc431-e99a-400f-9fbb-7d0e7e26bad5",
+              "name": "POST Cancel task",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Owner only. Cancels task execution and active work; cannot cancel a completed task. No request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "05 AI",
+          "description": "Owner-only clarification and AI job endpoints. Check progress using Tasks / Get task. Request bodies and revision must match the selected task.",
+          "item": [
+            {
+              "id": "ed6fb459-bd7c-4bac-9595-a81ca7c8ac21",
+              "name": "GET Get clarification questions",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/questions",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "questions"
+                  ]
+                },
+                "description": "Returns all current questions with persisted IDs. Copy these IDs into the answer body; question count can vary from 3 to 7.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "68d8424e-19a9-424b-b02e-1270c1f46116",
+              "name": "POST Submit clarification answers",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/answers",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "answers"
+                  ]
+                },
+                "description": "Requires current manual_revision and a nonblank answer for EVERY returned question. The three question IDs and answers below are illustrative: replace the entire array with the IDs/text from Get clarification questions and add entries for every question. Returns 202 and queues card generation/evaluation.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 202.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"revision\": {{manual_revision}},\n  \"answers\": [\n    { \"question_id\": 1, \"answer\": \"Store managers need a weekly inventory dashboard.\" },\n    { \"question_id\": 2, \"answer\": \"An anonymized inventory CSV is available.\" },\n    { \"question_id\": 3, \"answer\": \"Success means importing the CSV and flagging every low-stock product.\" }\n  ]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "73c261f7-198c-4c6b-b060-02ecaedaf7c0",
+              "name": "GET List AI jobs",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/ai-jobs",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "ai-jobs"
+                  ]
+                },
+                "description": "Returns job history for the owned task, including status, revision, errors and results. Use persisted IDs from Get clarification questions when submitting answers.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "14322b16-98da-47d7-b419-c30e632b1250",
+              "name": "POST Retry failed AI job",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/ai/retry",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "ai",
+                    "retry"
+                  ]
+                },
+                "description": "Requires an owned, editable task whose current AI check has failed. Fix provider settings first, then send this request and poll Tasks / Get task. Pending, running or succeeded checks cannot be retried. Uses the backend AI mode.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 202.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "06 Teams",
+          "description": "Team directory, details and membership. captain_id must be the CURRENT captain of manual_team_id for management actions.",
+          "item": [
+            {
+              "id": "bedb55ed-d7c7-4184-a330-3edb3ad0c424",
+              "name": "GET List teams",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams"
+                  ]
+                },
+                "description": "Lists teams and members. Copy a selected team ID to manual_team_id.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "816518f1-0880-43b5-ab5d-9499d6433e3b",
+              "name": "GET Get team",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams/{{manual_team_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams",
+                    "{{manual_team_id}}"
+                  ]
+                },
+                "description": "Returns team details, members, their team roles and aggregate skill tags.\n\nPublic request; no identity header required.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "1f98c187-b51e-47d9-99e3-f06ac056fbf0",
+              "name": "POST Create team",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams"
+                  ]
+                },
+                "description": "Any student can create a team and becomes its captain. Copy response id to manual_team_id.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 201.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Larda frontend team\",\n  \"description\": \"Students building an inventory dashboard.\",\n  \"interests\": [\"Analytics\", \"Web applications\"]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "fe2a3fc8-6cfa-4c1c-9d4d-e403ebf304e3",
+              "name": "PUT Update team",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams/{{manual_team_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams",
+                    "{{manual_team_id}}"
+                  ]
+                },
+                "description": "Current captain only. Replaces name, description and interests; omitted description/interests reset to empty values.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"name\": \"Larda delivery team\",\n  \"description\": \"Students delivering a retail dashboard.\",\n  \"interests\": [\"Retail\", \"Analytics\"]\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "e08ee45b-69c7-4779-ba62-d5391b8f3f6c",
+              "name": "POST Add member",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams/{{manual_team_id}}/members",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams",
+                    "{{manual_team_id}}",
+                    "members"
+                  ]
+                },
+                "description": "Current captain only. manual_user_id must identify an existing student.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": {{manual_user_id}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "a2e11c0b-dc8d-42d3-a75a-f14d08615892",
+              "name": "DELETE Remove member",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams/{{manual_team_id}}/members/{{manual_user_id}}",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams",
+                    "{{manual_team_id}}",
+                    "members",
+                    "{{manual_user_id}}"
+                  ]
+                },
+                "description": "Current captain only. Removes manual_user_id from the selected team. The captain cannot remove themselves; transfer captaincy first.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "6f8473db-a386-4d1d-b4ed-69283d4716c4",
+              "name": "POST Transfer captaincy",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams/{{manual_team_id}}/captain",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams",
+                    "{{manual_team_id}}",
+                    "captain"
+                  ]
+                },
+                "description": "Current captain only. manual_user_id must already be a team member. The old captain becomes a member immediately; update the acting identity header for later management requests.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"user_id\": {{manual_user_id}}\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "07 Proposals",
+          "description": "Applications from teams to tasks, business decisions and execution lifecycle.",
+          "item": [
+            {
+              "id": "e8cd2c18-3417-452f-825d-e923adf02f42",
+              "name": "GET List task proposals",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/proposals",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "proposals"
+                  ]
+                },
+                "description": "Task owner only. Returns all proposals for manual_task_id, including milestones.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "46ef24a6-52df-4a90-9c43-2a1b8da10042",
+              "name": "GET List team proposals",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{student_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/teams/{{manual_team_id}}/proposals",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "teams",
+                    "{{manual_team_id}}",
+                    "proposals"
+                  ]
+                },
+                "description": "Current team members only. Returns proposals for manual_team_id, including milestones; change the header to captain_id if needed.\n\nDemo identity header: {{student_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "554fc9a3-7634-4819-a5ef-9d2d0c8399d9",
+              "name": "POST Create proposal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/tasks/{{manual_task_id}}/proposals",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "tasks",
+                    "{{manual_task_id}}",
+                    "proposals"
+                  ]
+                },
+                "description": "Current captain of manual_team_id only. The task must be published and execution open. A team can submit multiple proposals to the same task. Copy response id to manual_proposal_id.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 201.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"team_id\": {{manual_team_id}},\n  \"solution_idea\": \"Build a CSV import and inventory dashboard with low-stock alerts.\",\n  \"plan\": \"Agree the data format, deliver an import prototype, then build and demonstrate the dashboard.\",\n  \"duration_days\": 14,\n  \"prototype_url\": \"https://example.com/larda/inventory-prototype\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "c75d505a-aa3b-4447-84f1-29bad87c6d65",
+              "name": "POST Decide proposal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/proposals/{{manual_proposal_id}}/decision",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "proposals",
+                    "{{manual_proposal_id}}",
+                    "decision"
+                  ]
+                },
+                "description": "Task owner only. Set status to accepted or rejected. Acceptance starts execution; multiple teams can be accepted. A decision is final.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"status\": \"accepted\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "2c1a8a29-6c52-4319-a821-490d7818cae8",
+              "name": "POST Complete proposal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/proposals/{{manual_proposal_id}}/complete",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "proposals",
+                    "{{manual_proposal_id}}",
+                    "complete"
+                  ]
+                },
+                "description": "Task owner only. Requires at least one approved milestone and all approved milestones completed. No request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "3a5ee9fd-616c-45ff-8d07-5bf695a3b729",
+              "name": "POST Cancel proposal",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/proposals/{{manual_proposal_id}}/cancel",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "proposals",
+                    "{{manual_proposal_id}}",
+                    "cancel"
+                  ]
+                },
+                "description": "Task owner only. Cancels an accepted active proposal. No request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "08 Milestones",
+          "description": "Stages inside accepted proposals. Read existing milestones in proposal list responses; there is no separate GET milestone endpoint.",
+          "item": [
+            {
+              "id": "62095ae6-8b8a-429a-b29a-f22020ea78ac",
+              "name": "POST Create milestone",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/proposals/{{manual_proposal_id}}/milestones",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "proposals",
+                    "{{manual_proposal_id}}",
+                    "milestones"
+                  ]
+                },
+                "description": "Current team captain or task owner, for an accepted active proposal. The default captain header creates a suggestion requiring business approval. Change the header to business_id to create an already approved milestone. Copy response id to manual_milestone_id. Omitted/null exp_reward defaults to 100; 0 means no reward.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 201.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"position\": 1,\n  \"title\": \"CSV import and inventory view\",\n  \"description\": \"Deliver a documented result and demonstrate it to the business contact.\",\n  \"exp_reward\": 100\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "bcb00a6a-6873-4d96-9e5c-d461477414ab",
+              "name": "POST Approve milestone",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/milestones/{{manual_milestone_id}}/approve",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "milestones",
+                    "{{manual_milestone_id}}",
+                    "approve"
+                  ]
+                },
+                "description": "Task owner only. Approves a suggested milestone so the team can submit a result. No request body.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract."
+              },
+              "response": []
+            },
+            {
+              "id": "a4657c52-5987-4837-a3a8-6f4b0a21303a",
+              "name": "POST Submit milestone result",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{captain_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/milestones/{{manual_milestone_id}}/submit",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "milestones",
+                    "{{manual_milestone_id}}",
+                    "submit"
+                  ]
+                },
+                "description": "Current team captain only. Requires an approved active milestone and an HTTP(S) result_url. A rejected result can be resubmitted.\n\nDemo identity header: {{captain_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"result_url\": \"https://example.com/larda/inventory-demo-v1\"\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            },
+            {
+              "id": "c56d554d-0135-45e4-b37e-03ca2d6d02b9",
+              "name": "POST Review milestone result",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "X-Demo-User-ID",
+                    "value": "{{business_id}}",
+                    "type": "text"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json",
+                    "type": "text"
+                  }
+                ],
+                "url": {
+                  "raw": "{{base_url}}/api/v1/milestones/{{manual_milestone_id}}/review",
+                  "host": [
+                    "{{base_url}}"
+                  ],
+                  "path": [
+                    "api",
+                    "v1",
+                    "milestones",
+                    "{{manual_milestone_id}}",
+                    "review"
+                  ]
+                },
+                "description": "Task owner only. Set accepted to true to complete the submitted milestone and distribute its reward, or false to request a revision. The team can submit again after rejection.\n\nDemo identity header: {{business_id}}.\nSuccess: HTTP 200.\n\nSet the relevant manual_* collection variables before sending. This request does not capture IDs, change variables or run polling scripts. See json.md for the response contract.",
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"accepted\": true\n}",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                }
+              },
+              "response": []
+            }
+          ]
         }
       ]
     }
