@@ -21,12 +21,11 @@ curl http://localhost:5173/api/v1/runtime
 - Docker frontend проксирует API к контейнеру `api`; внешние порты Vite на него не влияют.
 - `VITE_DATA_MODE=local` — отдельная локальная демонстрация. Она не обращается к серверному ИИ.
 
-Если API принимает Docker frontend на 3001, но отвечает `403 origin is not allowed` при запросах из Vite на 5173, в `CORS_ORIGINS` отсутствует адрес разработки. Пересоздайте API с обоими адресами и прежними портами (обычный `restart` не перечитывает переменные контейнера):
+Ошибка `403 origin is not allowed` означает, что origin браузера отсутствует в настройках работающего API. Например, localhost и 127.0.0.1 — разные origin. Теперь Compose автоматически добавляет оба адреса своего WEB_PORT и Vite 5173 через WEB_ORIGINS, сохраняя дополнительные CORS_ORIGINS. Пересоздайте контейнеры с прежними портами (обычный restart не применяет новые переменные):
 
 ```bash
 sudo env WEB_PORT=3001 HTTP_PORT=8081 POSTGRES_PORT=5433 \
-  CORS_ORIGINS=http://localhost:3001,http://127.0.0.1:3001,http://localhost:5173,http://127.0.0.1:5173 \
-  docker compose up --build -d --wait
+  docker compose up --build --force-recreate -d --wait
 ```
 
 Для внешней модели требуется `AI_MODE=openai`. Ключ остаётся только на сервере: не используйте переменные `VITE_*` для секретов. При запуске Go с ранее экспортированным `AI_MODE=fallback` уберите этот override; `.env` не заменяет уже заданные переменные окружения.

@@ -27,6 +27,9 @@ services:
       AI_TIMEOUT: ${AI_TIMEOUT:-60s}
       SEED_DEMO: ${SEED_DEMO:-true}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://127.0.0.1:4175}
+      # Always allow this Compose frontend and the local Vite frontend, even
+      # when .env carries an older CORS_ORIGINS override for a different port.
+      WEB_ORIGINS: http://localhost:${WEB_PORT:-3000},http://127.0.0.1:${WEB_PORT:-3000},http://localhost:5173,http://127.0.0.1:5173
     ports:
       - "127.0.0.1:${HTTP_PORT:-8080}:8080"
     depends_on:
@@ -46,5 +49,10 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ && wget -q -O /dev/null http://127.0.0.1/healthz"]
+      interval: 5s
+      timeout: 4s
+      retries: 10
 volumes:
   postgres_data:

@@ -169,6 +169,37 @@ func TestCORSUsesExactConfiguredOrigins(t *testing.T) {
 	}
 }
 
+func TestFrontendPostOriginsReachTaskAndProposalValidation(t *testing.T) {
+	repo := &fakeRepository{}
+	r := New(application.New(repo, nil), []string{
+		"http://localhost:3000", "http://127.0.0.1:3000",
+		"http://localhost:3001", "http://127.0.0.1:3001",
+	})
+	for _, origin := range []string{"http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3001", "http://127.0.0.1:3001", "http://127.0.0.1:3000.evil.example"} {
+		for _, path := range []string{"/api/v1/tasks", "/api/v1/tasks/5/proposals"} {
+			t.Run(origin+path, func(t *testing.T) {
+				response := request(r, http.MethodPost, path, `{}`, map[string]string{"Origin": origin, "X-Demo-User-ID": "1", "Content-Type": "application/json"})
+				if strings.HasSuffix(origin, ".evil.example") {
+					if response.Code != http.StatusForbidden || !strings.Contains(response.Body.String(), "origin is not allowed") {
+						t.Fatalf("unconfigured origin passed: status=%d body=%s", response.Code, response.Body.String())
+					}
+					return
+				}
+				// Invalid content reaches the actual handler without creating demo records or AI jobs.
+				if response.Code != http.StatusBadRequest || strings.Contains(response.Body.String(), "origin is not allowed") {
+					t.Fatalf("configured frontend blocked: status=%d body=%s", response.Code, response.Body.String())
+				}
+				if response.Header().Get("Access-Control-Allow-Origin") != origin {
+					t.Fatal("allowed browser origin missing from response")
+				}
+			})
+		}
+	}
+	if repo.transactions != 0 {
+		t.Fatal("invalid test data must not mutate the repository")
+	}
+}
+
 func TestPublicTaskDoesNotLeakDraftOrRawInput(t *testing.T) {
 	repo := &fakeRepository{publicTask: &domain.Task{
 		Record: domain.Record{ID: 42}, OwnerID: 1,

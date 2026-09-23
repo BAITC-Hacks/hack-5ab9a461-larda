@@ -228,10 +228,17 @@ export function TaskWizard({
         </div>
       )}
       {processing && step !== 0 && (
-        <p className="inline-notice" role="status">
-          Помощник готовит следующий шаг. Задача сохранена — можно вернуться к
-          списку.
-        </p>
+        <div className="inline-notice ai-waiting" role="status">
+          <span className="ai-waiting__spinner" aria-hidden="true" />
+          <span>
+            {step === 1
+              ? "Помощник готовит уточняющие вопросы…"
+              : "Помощник готовит карточку и оценку…"}
+            <span className="ai-waiting__hint">
+              Задача сохранена — подождите немного.
+            </span>
+          </span>
+        </div>
       )}
 
       {step === 0 && (

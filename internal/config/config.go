@@ -16,6 +16,26 @@ type Config struct {
 	Origins                                                         []string
 }
 
+const defaultOrigins = "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://localhost:3001,http://127.0.0.1:3001,http://127.0.0.1:4175"
+
+// Compose provides WEB_ORIGINS independently of CORS_ORIGINS so changing the
+// frontend's published port cannot leave its own origin blocked by an old .env.
+// Each entry remains an exact origin; wildcard access is never enabled.
+func mergeOrigins(lists ...string) []string {
+	origins := []string{}
+	seen := map[string]bool{}
+	for _, list := range lists {
+		for _, entry := range strings.Split(list, ",") {
+			origin := strings.TrimSpace(entry)
+			if origin != "" && origin != "*" && !seen[origin] {
+				seen[origin] = true
+				origins = append(origins, origin)
+			}
+		}
+	}
+	return origins
+}
+
 func env(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok {
 		return v
@@ -36,11 +56,7 @@ func Load() (Config, error) {
 	if err != nil {
 		return c, fmt.Errorf("SEED_DEMO must be a boolean")
 	}
-	for _, origin := range strings.Split(env("CORS_ORIGINS", "http://localhost:5173,http://127.0.0.1:5173,http://localhost:3000,http://127.0.0.1:3000,http://127.0.0.1:4175"), ",") {
-		if v := strings.TrimSpace(origin); v != "" {
-			c.Origins = append(c.Origins, v)
-		}
-	}
+	c.Origins = mergeOrigins(env("CORS_ORIGINS", defaultOrigins), env("WEB_ORIGINS", ""))
 	if c.AIMode != "openai" && c.AIMode != "fallback" {
 		return c, fmt.Errorf("AI_MODE must be openai or fallback")
 	}
