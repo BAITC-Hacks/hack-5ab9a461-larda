@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"hackalem/internal/domain"
+	"larda/internal/domain"
 )
 
 func TestFallbackPreservesFactsAndMapsAnswers(t *testing.T) {

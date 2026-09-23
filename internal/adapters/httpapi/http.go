@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"hackalem/internal/application"
-	"hackalem/internal/domain"
+	"larda/internal/application"
+	"larda/internal/domain"
 )
 
 const maxBodyBytes = 1 << 20

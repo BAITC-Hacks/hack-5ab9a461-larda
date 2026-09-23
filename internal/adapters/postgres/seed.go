@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"gorm.io/gorm"
-	"hackalem/internal/domain"
+	"larda/internal/domain"
 	"time"
 )
 

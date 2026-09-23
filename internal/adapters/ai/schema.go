@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"hackalem/internal/domain"
+	"larda/internal/domain"
 )
 
 var criterionOrder = []string{"context_need", "data", "result", "success_criteria", "constraints", "users", "communication"}

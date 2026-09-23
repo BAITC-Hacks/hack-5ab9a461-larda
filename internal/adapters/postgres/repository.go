@@ -14,9 +14,9 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
-	"hackalem/migrations"
+	"larda/internal/domain"
+	"larda/internal/ports"
+	"larda/migrations"
 )
 
 type Repository struct{ db *gorm.DB }

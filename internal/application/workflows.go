@@ -7,8 +7,8 @@ import (
 	"sort"
 	"strings"
 
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 type TeamInput struct {

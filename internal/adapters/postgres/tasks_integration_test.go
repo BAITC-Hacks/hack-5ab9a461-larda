@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"hackalem/internal/adapters/ai"
-	"hackalem/internal/application"
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/adapters/ai"
+	"larda/internal/application"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 // Every test owns a newly-created schema. No existing tables or application data are reset.

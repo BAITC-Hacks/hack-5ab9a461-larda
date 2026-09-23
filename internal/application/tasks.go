@@ -11,8 +11,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 type CreateTaskInput struct {

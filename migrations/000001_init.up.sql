@@ -1,4 +1,4 @@
--- Hackalem initial schema. PostgreSQL 15+.
+-- Larda initial schema. PostgreSQL 15+.
 -- Apply once to an empty database, inside a transaction.
 -- Authorization, state transitions, rating calculation and EXP payouts belong
 -- to the application service layer. This migration defines storage constraints.

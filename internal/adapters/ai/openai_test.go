@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"hackalem/internal/domain"
+	"larda/internal/domain"
 )
 
 func testEvaluation() map[string]any {

@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"hackalem/internal/application"
-	"hackalem/internal/domain"
+	"larda/internal/application"
+	"larda/internal/domain"
 )
 
 func (h handler) workflowRoutes(v1 *gin.RouterGroup) {

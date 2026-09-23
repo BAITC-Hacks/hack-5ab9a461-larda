@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 // Fallback is an explicitly configured local demo, never a silent replacement

@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"hackalem/internal/application"
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/application"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 type fakeRepository struct {

@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 const maxResponseBytes = 1 << 20
@@ -70,7 +70,7 @@ func (a *OpenAI) Generate(ctx context.Context, kind string, input domain.AIInput
 		"model": a.model, "instructions": systemPrompt + "\n\n" + instruction,
 		"input": string(inputJSON), "store": false, "max_output_tokens": 6000,
 		"text": map[string]any{"format": map[string]any{
-			"type": "json_schema", "name": "hackalem_" + kind,
+			"type": "json_schema", "name": "larda_" + kind,
 			"strict": true, "schema": responseSchema(kind),
 		}},
 	})

@@ -1,17 +1,17 @@
-name: hackalem-test
+name: larda-test
 services:
   db:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: hackalem_test
-      POSTGRES_USER: hackalem
-      POSTGRES_PASSWORD: hackalem
+      POSTGRES_DB: larda_test
+      POSTGRES_USER: larda
+      POSTGRES_PASSWORD: larda
     ports:
       - "127.0.0.1:55432:5432"
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hackalem -d hackalem_test"]
+      test: ["CMD-SHELL", "pg_isready -U larda -d larda_test"]
       interval: 2s
       timeout: 2s
       retries: 20

@@ -1,4 +1,4 @@
-# Hackalem — задания бизнеса для студенческих команд
+# Larda — задания бизнеса для студенческих команд
 
 Бэкенд на Go, Gin, GORM и PostgreSQL. Бизнес превращает описание проблемы в карточку с помощью OpenAI, публикует её, выбирает команды и принимает результаты этапов. Студенты получают EXP и достижения. REST-контракт: [docs/openapi.yaml](docs/openapi.yaml); требования: [Task.md](Task.md), модель данных: [ERD.md](ERD.md).
 
@@ -17,7 +17,7 @@ Invoke-RestMethod http://localhost:8080/healthz
 
 Для демонстрации без сетевых запросов к модели и расхода кредитов явно укажите `AI_MODE=fallback`. Этот режим проверяет заполненность полей и возвращает `source: "fallback"`; он не оценивает смысл текста. При ошибке OpenAI сервер сохраняет `failed` и не переключается в fallback автоматически. После изменения `.env` выполните `docker compose up -d --build --wait`.
 
-API: `http://localhost:8080/api/v1`. `/livez` проверяет процесс, `/healthz` и `/readyz` — доступность БД. Логи: `docker compose logs -f api`. Остановка с сохранением данных: `docker compose down`. PostgreSQL хранится в именованном томе `postgres_data`.
+API: `http://localhost:8080/api/v1`. `/livez` проверяет процесс, `/healthz` и `/readyz` — доступность БД. Логи: `docker compose logs -f api`. Остановка с сохранением данных: `docker compose down`. Имя проекта Compose — `larda`, том PostgreSQL — `larda_postgres_data`. Тома, созданные под прежним именем проекта, сохраняются отдельно и автоматически не переносятся.
 
 `.env` исключён из Git; настоящий ключ нельзя коммитить. Основные настройки перечислены в [.env.example](.env.example): `AI_MODE`, `OPENAI_API_KEY`, `OPENAI_MODEL`, `AI_TIMEOUT`, `DATABASE_URL`, `SEED_DEMO`, `CORS_ORIGINS`, порты API и PostgreSQL. CORS разрешает только перечисленные точные origin.
 
@@ -132,7 +132,7 @@ go vet ./...
 
 ```powershell
 docker compose -f compose.test.yaml up -d --wait
-$env:TEST_DATABASE_URL = 'postgres://hackalem:hackalem@localhost:55432/hackalem_test?sslmode=disable'
+$env:TEST_DATABASE_URL = 'postgres://larda:larda@localhost:55432/larda_test?sslmode=disable'
 go test ./...
 go vet ./...
 Remove-Item Env:TEST_DATABASE_URL

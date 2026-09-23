@@ -1,4 +1,4 @@
--- Destructive rollback: drops the Hackalem schema and all its data.
+-- Destructive rollback: drops the Larda schema and all its data.
 -- Apply inside a transaction. No CASCADE: unexpected external dependencies fail.
 DROP TABLE exp_transactions;
 DROP TABLE user_achievements;

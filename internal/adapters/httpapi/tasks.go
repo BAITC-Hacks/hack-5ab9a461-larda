@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
-	"hackalem/internal/application"
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/application"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 func (h handler) taskRoutes(v1 *gin.RouterGroup) {

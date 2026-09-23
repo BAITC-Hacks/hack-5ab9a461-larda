@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"hackalem/internal/adapters/ai"
-	"hackalem/internal/application"
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/adapters/ai"
+	"larda/internal/application"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 func integrationTeam(t *testing.T, s *application.Service, name string, members ...int64) *domain.Team {

@@ -4,8 +4,8 @@ package application
 import (
 	"context"
 	"fmt"
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/domain"
+	"larda/internal/ports"
 	"time"
 )
 

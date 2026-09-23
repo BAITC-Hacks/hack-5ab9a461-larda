@@ -1,6 +1,6 @@
 openapi: "3.0.3"
 info: 
-  title: "Hackalem backend"
+  title: "Larda backend"
   version: "1.0.0"
   description: "Demo REST API. X-Demo-User-ID selects an existing user; there are no credentials or JWT. Roles and captain permissions are checked by use cases. Body-bearing endpoints accept application/json, reject unknown fields and limit bodies to 1 MiB. Errors use {error:{code,message}}. Common error statuses: 400 invalid_input, 403 forbidden, 404 not_found, 409 conflict, 413 payload_too_large, 415 unsupported_media_type, 500 internal. Task creation and changes persist before OpenAI work, return 202, and must be polled. Failed jobs require explicit retry; explicit fallback mode is selected by server configuration. Public task responses contain only the published card and published evaluation. New edits and their ratings become public only after owner confirmation. A low readiness score does not block publication or proposals. Score weights: context_need 20, data 20, result 15, success_criteria 15, constraints 10, users 10, communication 10. Readiness categories: draft 0–39, working 40–69, ready 70–89, priority 90–100."
 servers: 

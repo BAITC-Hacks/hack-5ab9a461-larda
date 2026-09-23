@@ -1,4 +1,4 @@
-# Hackalem
+# Larda
 
 A hackathon platform connecting business tasks with student teams.
 

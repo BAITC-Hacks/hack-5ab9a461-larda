@@ -8,8 +8,8 @@ import (
 	"sort"
 	"testing"
 
-	"hackalem/internal/domain"
-	"hackalem/internal/ports"
+	"larda/internal/domain"
+	"larda/internal/ports"
 )
 
 // Embed the port so an unexpected dependency fails the test instead of being

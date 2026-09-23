@@ -1,7 +1,7 @@
 package postgres
 
 import (
-	"hackalem/internal/domain"
+	"larda/internal/domain"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

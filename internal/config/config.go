@@ -26,7 +26,7 @@ func Load() (Config, error) {
 	if err := godotenv.Load(); err != nil && !os.IsNotExist(err) {
 		return Config{}, fmt.Errorf("read .env: %w", err)
 	}
-	c := Config{Address: env("HTTP_ADDR", ":8080"), DatabaseURL: env("DATABASE_URL", "postgres://hackalem:hackalem@localhost:5432/hackalem?sslmode=disable"), AIMode: env("AI_MODE", "openai"), OpenAIKey: os.Getenv("OPENAI_API_KEY"), OpenAIURL: env("OPENAI_BASE_URL", "https://api.openai.com/v1"), OpenAIModel: env("OPENAI_MODEL", "gpt-4o-mini")}
+	c := Config{Address: env("HTTP_ADDR", ":8080"), DatabaseURL: env("DATABASE_URL", "postgres://larda:larda@localhost:5432/larda?sslmode=disable"), AIMode: env("AI_MODE", "openai"), OpenAIKey: os.Getenv("OPENAI_API_KEY"), OpenAIURL: env("OPENAI_BASE_URL", "https://api.openai.com/v1"), OpenAIModel: env("OPENAI_MODEL", "gpt-4o-mini")}
 	var err error
 	c.AITimeout, err = time.ParseDuration(env("AI_TIMEOUT", "60s"))
 	if err != nil || c.AITimeout < time.Second || c.AITimeout > 90*time.Second {
