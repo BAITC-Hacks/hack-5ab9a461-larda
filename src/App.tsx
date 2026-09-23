@@ -1,63 +1,15 @@
-import { useState } from 'react'
+import { BrowserRouter } from "react-router-dom";
+import { WorkspaceProvider } from "./app/WorkspaceProvider";
+import { AppRoutes } from "./app/routes";
+import { createMockRepository } from "./data/mockRepository";
 
-type Page = 'home' | 'builder' | 'review' | 'catalog' | 'detail' | 'proposals'
-type Proposal = { team: string; members: number; idea: string; plan: string[]; days: number; skills: string[]; url: string; status: 'pending' | 'accepted' | 'rejected' }
-
-const steps = ['Описание', 'Уточнения AI', 'Публикация']
-const questions = [
-  { label: 'Как вы поймёте, что задача решена?', gain: 15, answer: 'Каждая тестовая заявка попадает в список без ручного копирования.' },
-  { label: 'Какие данные вы сможете предоставить команде?', gain: 15, answer: 'Excel-таблицу и 20 обезличенных примеров сообщений.' },
-  { label: 'Есть ли ограничения для первого прототипа?', gain: 10, answer: 'Нужен только прототип — без подключения к реальному WhatsApp.' }
-]
-
-const catalog = [
-  { id: 'whatsapp', title: 'Автоматизация заявок из WhatsApp', industry: 'Retail', score: 82, problem: 'Менеджеры вручную переносят обращения из WhatsApp в Excel.', challenge: 'Прототип обработки сообщений и dashboard заявок.', skills: ['React', 'Automation', 'Data'], complexity: 'Средняя', proposals: 2, data: true },
-  { id: 'stock', title: 'Панель контроля остатков', industry: 'Food service', score: 74, problem: 'Закупщик сверяет остатки в нескольких Excel-файлах.', challenge: 'Dashboard для загрузки и контроля остатков.', skills: ['React', 'Charts'], complexity: 'Средняя', proposals: 1, data: true },
-  { id: 'booking', title: 'Меньше пропущенных записей', industry: 'Beauty', score: 71, problem: 'Администратор не всегда успевает отвечать на звонки.', challenge: 'Кликабельный прототип самостоятельной записи.', skills: ['UI/UX', 'Frontend'], complexity: 'Небольшая', proposals: 3, data: true }
-]
-
-const startingProposals: Proposal[] = [
-  { team: 'Team Orbit', members: 3, idea: 'Сделаем классификацию тестовых обращений и понятный dashboard очереди заявок.', plan: ['Опишем категории заявок', 'Соберём обработчик', 'Покажем dashboard'], days: 5, skills: ['React', 'Python', 'UI/UX'], url: 'github.com/team-orbit', status: 'pending' },
-  { team: 'Team Pixel', members: 2, idea: 'Сделаем интерфейс очереди заявок со сценарием ручной проверки.', plan: ['Проработаем путь менеджера', 'Соберём интерфейс', 'Подготовим demo'], days: 7, skills: ['Next.js', 'TypeScript'], url: 'github.com/team-pixel', status: 'pending' }
-]
-
-function Score({ score, small = false }: { score: number; small?: boolean }) {
-  return <div className={small ? 'score small' : 'score'} style={{ '--score': `${score * 3.6}deg` } as React.CSSProperties}>
-    <div><strong>{score}</strong><span>/ 100</span></div>
-  </div>
+const repository = createMockRepository(window.sessionStorage);
+export default function App() {
+  return (
+    <WorkspaceProvider repository={repository}>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </WorkspaceProvider>
+  );
 }
-
-function Tags({ tags }: { tags: string[] }) { return <div className="tags">{tags.map(tag => <span key={tag}>{tag}</span>)}</div> }
-
-function App() {
-  const [page, setPage] = useState<Page>('home')
-  const [answers, setAnswers] = useState<number>(0)
-  const [published, setPublished] = useState(false)
-  const [proposalSent, setProposalSent] = useState(false)
-  const [proposals, setProposals] = useState<Proposal[]>(startingProposals)
-  const score = 25 + answers * 17
-  const task = catalog[0]
-  const navigate = (next: Page) => { setPage(next); window.scrollTo({ top: 0, behavior: 'smooth' }) }
-  const accept = (index: number, status: Proposal['status']) => setProposals(items => items.map((p, i) => i === index ? { ...p, status } : p))
-
-  const nav = <header><button className="brand" onClick={() => navigate('home')}>ларда<span>↔</span></button><nav><button onClick={() => navigate('builder')}>Для бизнеса</button><button onClick={() => navigate('catalog')}>Для студентов</button></nav><button className="ghost" onClick={() => navigate('catalog')}>Каталог задач →</button></header>
-
-  if (page === 'home') return <><main className="landing">{nav}<section className="hero"><p className="eyebrow">BUSINESS ↔ STUDENT TRANSLATOR</p><h1>Бизнес говорит о проблеме.<br/><i>Студенты понимают, что построить.</i></h1><p className="lead">Larda переводит расплывчатую бизнес-задачу в честный, понятный challenge для молодой команды.</p><div className="actions"><button className="primary" onClick={() => navigate('builder')}>У меня есть бизнес-задача <b>→</b></button><button className="secondary" onClick={() => navigate('catalog')}>Я хочу найти challenge <b>→</b></button></div></section><section className="translation-demo"><div><p className="eyebrow green">BUSINESS SAYS</p><blockquote>«Заявки из WhatsApp менеджеры вручную переносят в Excel»</blockquote></div><div className="arrow">→</div><div><p className="eyebrow purple">BUILD CHALLENGE</p><h3>Автоматизировать первичную регистрацию заявок</h3><p>Прототип обработки сообщений и dashboard очереди.</p></div></section></main></>
-
-  if (page === 'builder') return <><main className="app">{nav}<Progress active={answers ? 1 : 0}/><div className="split builder"><section><p className="eyebrow green">ШАГ 1 · РАССКАЖИТЕ СВОИМИ СЛОВАМИ</p><h1>Что у вас болит?</h1><p className="muted">Не нужно писать техническое задание. Опишите проблему, как рассказали бы коллеге.</p><div className="input-card"><label>Ваша ситуация</label><textarea defaultValue="У нас магазин, менеджеры постоянно смотрят WhatsApp и вручную переносят всё в Excel." /><button className="primary" onClick={() => setAnswers(Math.max(1, answers))}>AI, помоги сформулировать <b>→</b></button></div><div className="questions"><div className="ai-note"><span>✦</span><p>Я понял основу. Чтобы студенты предложили реалистичное решение, уточню несколько вещей.</p></div>{questions.map((q, i) => <div className={`question ${i < answers ? 'answered' : ''}`} key={q.label}><div className="question-top"><span>{i + 1}</span><strong>{q.label}</strong><em>+{q.gain}</em></div>{i < answers ? <p className="answer">{q.answer}</p> : i === answers ? <><textarea placeholder="Напишите коротко, своими словами…" /><button className="text-btn" onClick={() => setAnswers(a => a + 1)}>Сохранить ответ →</button></> : <p className="locked">Следующий вопрос появится после ответа</p>}</div>)}</div>{answers >= 3 && <button className="primary wide" onClick={() => navigate('review')}>Посмотреть готовую карточку <b>→</b></button>}</section><BriefPreview score={score} answers={answers}/></div></main></>
-
-  if (page === 'review') return <><main className="app">{nav}<Progress active={2}/><div className="review-head"><div><p className="eyebrow purple">AI TRANSLATED · ГОТОВО К ПРОВЕРКЕ</p><h1>Проверьте задачу перед публикацией</h1><p className="muted">Вы можете изменить любой пункт. Мы не добавили ничего, чего вы не сообщали.</p></div><div className="score-wrap"><Score score={76}/><div><b>Готово к откликам</b><p>Задача будет выше в каталоге</p></div></div></div><section className="review-grid"><article className="brief-card"><BriefContent answers={3}/><button className="secondary">Редактировать карточку</button></article><aside className="readiness-card"><h3>Качество постановки</h3>{[['Контекст проблемы', 25, 25], ['Цель и результат', 18, 20], ['Критерий успеха', 15, 15], ['Доступные данные', 10, 15], ['Ограничения', 8, 10], ['Формат работы', 0, 10]].map(([label, got, total]) => <div className="breakdown" key={String(label)}><div><span>{label}</span><b>{got}/{total}</b></div><i><i style={{ width: `${Number(got) / Number(total) * 100}%` }}/></i></div>)}<div className="next-step"><b>+10</b><span>Укажите, как команда будет передавать результат</span></div><button className="primary wide" onClick={() => { setPublished(true); navigate('catalog') }}>Опубликовать задачу <b>→</b></button></aside></section></main></>
-
-  if (page === 'catalog') return <><main className="app">{nav}<section className="catalog-head"><div><p className="eyebrow purple">CHALLENGE CATALOG</p><h1>Задачи, которые можно взять в работу</h1><p className="muted">Сначала — наиболее готовые к работе задачи.</p></div><div className="catalog-sort">Сортировка <b>По readiness ↓</b></div></section>{published && <div className="toast">✓ Задача опубликована и теперь видна студентам</div>}<section className="catalog-grid">{catalog.map((item, i) => <article className="task-card" key={item.id}><div className="card-top"><span className="industry">{item.industry}</span><span className="readiness">● {item.score} readiness</span></div><h2>{item.title}</h2><p className="problem">{item.problem}</p><div className="mini-translation"><small>BUSINESS SAYS</small><p>«Заявки теряются, всё переносим руками»</p><small>BUILD CHALLENGE</small><b>{item.challenge}</b></div><Tags tags={item.skills}/><div className="meta">{item.complexity} · {item.data ? 'Есть данные' : 'Нет данных'} · {item.proposals} отклика</div><button className="card-link" onClick={() => navigate('detail')}>View challenge →</button></article>)}</section></main></>
-
-  if (page === 'detail') return <><main className="app">{nav}<button className="back" onClick={() => navigate('catalog')}>← Все challenges</button><section className="detail-head"><div><div className="card-top"><span className="industry">Retail</span><span className="readiness">● 82 readiness</span></div><h1>{task.title}</h1><Tags tags={task.skills}/></div><div className="side-meta">Средняя сложность<br/><b>Есть примеры данных</b></div></section><section className="translation-detail"><div className="business-panel"><p className="eyebrow green">BUSINESS NEED</p><blockquote>«Нам сложно обрабатывать заявки из WhatsApp. Менеджеры вручную переносят всё в Excel»</blockquote><dl><dt>Что происходит сейчас</dt><dd>Обращения вручную регистрируются в Excel.</dd><dt>Что есть</dt><dd>Excel и 20 обезличенных сообщений.</dd></dl></div><div className="student-panel"><p className="eyebrow purple">AI TRANSLATED · BUILD CHALLENGE</p><h2>Сделать прототип обработки заявок</h2><div className="brief-lines"><p><b>Problem</b>Входящие обращения вручную регистрируются в Excel.</p><p><b>Goal</b>Сократить ручную обработку и не терять обращения.</p><p><b>Deliverable</b>Обработка сообщений и dashboard заявок.</p><p><b>Success</b>Каждое тестовое сообщение попадает в список без ручного копирования.</p><p><b>Не нужно</b>Production-интеграция с WhatsApp и полноценная CRM.</p></div></div></section>{proposalSent ? <section className="success-state"><span>✓</span><h2>Предложение отправлено</h2><p>Бизнес увидит идею вашей команды и сам примет решение.</p><button className="primary" onClick={() => navigate('proposals')}>Посмотреть выбор бизнеса →</button></section> : <ProposalForm onSend={() => setProposalSent(true)}/>}</main></>
-
-  return <><main className="app">{nav}<button className="back" onClick={() => navigate('review')}>← К моей задаче</button><section className="proposal-head"><div><p className="eyebrow green">2 ПРЕДЛОЖЕНИЯ · РЕШЕНИЕ ЗА БИЗНЕСОМ</p><h1>Выберите команду</h1><p className="muted">AI не ранжирует исполнителей. Сравните идеи и примите решение сами.</p></div><div className="task-chip">Автоматизация заявок из WhatsApp<br/><b>Readiness 82</b></div></section><section className="proposals-grid">{proposals.map((proposal, i) => <article className={`proposal-card ${proposal.status}`} key={proposal.team}><div className="proposal-title"><div className="avatar">{proposal.team.split(' ').map(s => s[0]).join('')}</div><div><h2>{proposal.team}</h2><p>{proposal.members} участника</p></div>{proposal.status !== 'pending' && <span className="decision">{proposal.status === 'accepted' ? '✓ Выбрана' : 'Отклонено'}</span>}</div><div><small>ИДЕЯ РЕШЕНИЯ</small><p>{proposal.idea}</p></div><div><small>КРАТКИЙ ПЛАН</small><ol>{proposal.plan.map(x => <li key={x}>{x}</li>)}</ol></div><Tags tags={proposal.skills}/><div className="proposal-footer"><span>{proposal.days} дней · <u>{proposal.url}</u></span>{proposal.status === 'pending' && <div><button className="reject" onClick={() => accept(i, 'rejected')}>Reject</button><button className="primary" onClick={() => accept(i, 'accepted')}>Accept</button></div>}</div></article>)}</section></main></>
-}
-
-function Progress({ active }: { active: number }) { return <div className="progress">{steps.map((step, i) => <div className={i <= active ? 'active' : ''} key={step}><span>{i + 1}</span>{step}</div>)}</div> }
-function BriefContent({ answers }: { answers: number }) { const filled = answers >= 3; return <><p className="eyebrow purple">STUDENT-READY BRIEF</p><h2>Автоматизация заявок из WhatsApp</h2><div className="brief-lines"><p><b>Problem</b>Менеджеры вручную переносят обращения из WhatsApp в Excel.</p><p><b>Goal</b>{filled ? 'Автоматизировать первичную регистрацию входящих заявок.' : 'Нужно уточнить'}</p><p><b>Expected deliverable</b>{filled ? 'Прототип обработки сообщений и dashboard со списком заявок.' : 'Нужно уточнить'}</p><p><b>Success criteria</b>{filled ? 'Каждая тестовая заявка попадает в список без ручного копирования.' : 'Нужно уточнить'}</p><p><b>Available data</b>{filled ? 'Excel-таблица и 20 обезличенных примеров сообщений.' : 'Не указано'}</p><p><b>Constraints</b>{filled ? 'Только прототип; без реального подключения к WhatsApp.' : 'Не указано'}</p></div></> }
-function BriefPreview({ score, answers }: { score: number; answers: number }) { return <aside className="preview"><div className="preview-top"><p className="eyebrow purple">AI ПЕРЕВОДИТ В ЗАДАЧУ</p><Score score={score} small/></div><p className="score-copy">{score < 40 ? 'Нужно уточнить основу' : score < 70 ? 'Почти готово' : 'Готово к откликам'}</p><BriefContent answers={answers}/><div className="preview-foot">{answers < 3 ? <><b>Следующий лучший шаг</b><span>+{questions[answers]?.gain ?? 0} за ответ на вопрос</span></> : <><b>Карточка почти готова</b><span>Проверьте перед публикацией</span></>}</div></aside> }
-function ProposalForm({ onSend }: { onSend: () => void }) { return <section className="proposal-form"><div><p className="eyebrow purple">ОТКЛИК КОМАНДЫ</p><h2>Предложите свой подход</h2><p className="muted">Бизнес увидит только то, что вы напишете здесь.</p></div><div className="form-grid"><label>Название команды<input defaultValue="Team Nova" /></label><label>Срок<input defaultValue="5 дней" /></label><label className="full">Идея решения<textarea defaultValue="Сделаем прототип классификации обращений и dashboard заявок для менеджера." /></label><label className="full">Краткий план<textarea defaultValue={'1. Опишем категории заявок\n2. Соберём интерфейс обработки\n3. Покажем dashboard'} /></label><label className="full">Ссылка на prototype или repository<input placeholder="https://..." /></label></div><button className="primary" onClick={onSend}>Отправить предложение <b>→</b></button></section> }
-
-export default App
