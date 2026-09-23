@@ -68,7 +68,7 @@ func normalize(err error) error {
 		switch pg.Code {
 		case "23505", "40001", "40P01":
 			return fmt.Errorf("%w: concurrent or duplicate operation", domain.ErrConflict)
-		case "23503", "23514", "22001", "22003":
+		case "23503", "23514", "22001", "22003", "22021", "22P05":
 			return fmt.Errorf("%w: database constraint", domain.ErrInvalid)
 		}
 	}

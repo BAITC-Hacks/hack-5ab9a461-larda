@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net/url"
 	"os"
 	"strings"
@@ -186,6 +187,160 @@ func TestFailedAIAndExplicitRetry(t *testing.T) {
 	done := taskGet(t, good, task.ID)
 	if done.AIStatus != "succeeded" || done.DraftEvaluation.Source != "fallback" {
 		t.Fatal("retry did not work")
+	}
+}
+
+type publicProviderError struct{}
+
+func (publicProviderError) Error() string { return "secret provider body and credentials" }
+func (publicProviderError) PublicMessage() string {
+	return "OpenAI rejected the API key. Check OPENAI_API_KEY and retry."
+}
+
+type publicFailedAI struct{}
+
+func (publicFailedAI) Source() string { return "openai" }
+func (publicFailedAI) Generate(context.Context, string, domain.AIInput) (domain.AIResult, error) {
+	return domain.AIResult{}, fmt.Errorf("wrapped provider failure: %w", publicProviderError{})
+}
+
+func TestSafeAIErrorIsPersistedAndRetryClearsIt(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	s := application.New(r, publicFailedAI{})
+	task, err := s.CreateTask(ctx, 1, application.CreateTaskInput{RawDescription: "Business problem"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskProcess(t, s)
+	failed := taskGet(t, s, task.ID)
+	jobs, err := s.Jobs(ctx, 1, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := (publicProviderError{}).PublicMessage()
+	if failed.AIStatus != "failed" || failed.AIError != want || len(jobs) != 1 || jobs[0].Error != want {
+		t.Fatalf("safe provider diagnosis was lost: task=%+v jobs=%+v", failed, jobs)
+	}
+	good := application.New(r, ai.NewFallback())
+	pending, err := good.RetryAI(ctx, 1, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending.AIError != "" || pending.AIStatus != "pending" {
+		t.Fatal("retry retained the previous error")
+	}
+	taskProcess(t, good)
+	done := taskGet(t, good, task.ID)
+	jobs, err = good.Jobs(ctx, 1, task.ID)
+	if err != nil || done.AIStatus != "succeeded" || done.AIError != "" || jobs[0].Error != "" || jobs[0].Attempts != 2 {
+		t.Fatalf("retry did not finish cleanly: task=%+v jobs=%+v err=%v", done, jobs, err)
+	}
+}
+
+type modifyingAI struct{ modify func(*domain.AIResult) }
+
+func (modifyingAI) Source() string { return "openai" }
+func (a modifyingAI) Generate(ctx context.Context, kind string, in domain.AIInput) (domain.AIResult, error) {
+	result, err := ai.NewFallback().Generate(ctx, kind, in)
+	if err == nil {
+		a.modify(&result)
+	}
+	return result, err
+}
+
+func TestUnstorableAIResultFailsWithoutRepeatedProviderCalls(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	cases := map[string]func(*domain.AIResult){
+		"question":           func(v *domain.AIResult) { v.Questions[0].Question += "\x00" },
+		"criterion reason":   func(v *domain.AIResult) { v.Evaluation.Criteria[0].Reason += "\x00" },
+		"criterion missing":  func(v *domain.AIResult) { v.Evaluation.Criteria[0].Missing = []string{"missing\x00data"} },
+		"evaluation missing": func(v *domain.AIResult) { v.Evaluation.Missing = []string{"missing\x00data"} },
+		"card":               func(v *domain.AIResult) { v.Card = &domain.Card{Context: "bad\x00context"} },
+	}
+	for name, modify := range cases {
+		t.Run(name, func(t *testing.T) {
+			s := application.New(r, modifyingAI{modify: modify})
+			task, err := s.CreateTask(ctx, 1, application.CreateTaskInput{RawDescription: "Business problem"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			taskProcess(t, s)
+			failed := taskGet(t, s, task.ID)
+			jobs, err := s.Jobs(ctx, 1, task.ID)
+			if err != nil || failed.AIStatus != "failed" || failed.DraftEvaluation != nil || len(jobs) != 1 || jobs[0].Status != "failed" {
+				t.Fatalf("unstorable AI data did not become terminal: task=%+v jobs=%+v err=%v", failed, jobs, err)
+			}
+			// Past the normal crash-recovery lease, this invalid result must still
+			// require an explicit retry rather than another billable API call.
+			if err = r.db.Model(&domain.AIJob{}).Where("task_id = ?", task.ID).Update("updated_at", time.Now().Add(-6*time.Minute)).Error; err != nil {
+				t.Fatal(err)
+			}
+			if err = s.ProcessNext(ctx); !errors.Is(err, domain.ErrNotFound) {
+				t.Fatalf("failed result was automatically retried: %v", err)
+			}
+			good := application.New(r, ai.NewFallback())
+			if _, err = good.RetryAI(ctx, 1, task.ID); err != nil {
+				t.Fatal(err)
+			}
+			taskProcess(t, good)
+			if taskGet(t, good, task.ID).AIStatus != "succeeded" {
+				t.Fatal("explicit retry did not recover from an invalid AI response")
+			}
+		})
+	}
+}
+
+func TestTaskRejectsNullCharactersBeforePersistence(t *testing.T) {
+	r := testRepo(t)
+	ctx := context.Background()
+	s := application.New(r, ai.NewFallback())
+	for _, input := range []application.CreateTaskInput{
+		{RawDescription: "bad\x00raw"},
+		{RawDescription: "Business problem", Industry: "bad\x00industry"},
+	} {
+		if _, err := s.CreateTask(ctx, 1, input); !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("null character in task input was accepted: %v", err)
+		}
+	}
+	task, err := s.CreateTask(ctx, 1, application.CreateTaskInput{RawDescription: "Business problem"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	taskProcess(t, s)
+	bad := "bad\x00value"
+	for _, patch := range []application.DraftPatch{
+		{Revision: task.Revision, RawDescription: &bad},
+		{Revision: task.Revision, Title: &bad},
+	} {
+		if _, err = s.PatchTask(ctx, 1, task.ID, patch); !errors.Is(err, domain.ErrInvalid) {
+			t.Fatalf("null character in patch was accepted: %v", err)
+		}
+	}
+	qs, err := s.Questions(ctx, 1, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	answers := make([]application.Answer, len(qs))
+	for i, q := range qs {
+		answers[i] = application.Answer{QuestionID: q.ID, Answer: "Valid answer"}
+	}
+	answers[len(answers)-1].Answer = bad
+	if _, err = s.AnswerQuestions(ctx, 1, task.ID, application.AnswersInput{Revision: task.Revision, Answers: answers}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("null character in answer was accepted: %v", err)
+	}
+	qs, err = s.Questions(ctx, 1, task.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range qs {
+		if q.Answer != nil {
+			t.Fatal("an invalid answer submission was partially persisted")
+		}
+	}
+	if latest := taskGet(t, s, task.ID); latest.Revision != task.Revision || latest.AIStatus != "succeeded" {
+		t.Fatal("invalid input changed the task or queued another job")
 	}
 }
 

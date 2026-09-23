@@ -74,7 +74,10 @@ func validateCard(c domain.Card) error {
 	if utf8.RuneCountInString(c.Industry) > 80 || utf8.RuneCountInString(c.Topic) > 80 {
 		return fmt.Errorf("%w: industry/topic exceeds 80 characters", domain.ErrInvalid)
 	}
-	for _, v := range []string{c.Title, c.Context, c.Need, c.TargetUsers, c.AvailableData, c.Constraints, c.ExpectedResult, c.SuccessCriteria, c.Contact, c.InteractionFormat, c.FeedbackProcess} {
+	for _, v := range []string{c.Industry, c.Topic, c.Title, c.Context, c.Need, c.TargetUsers, c.AvailableData, c.Constraints, c.ExpectedResult, c.SuccessCriteria, c.Contact, c.InteractionFormat, c.FeedbackProcess} {
+		if strings.ContainsRune(v, 0) {
+			return fmt.Errorf("%w: card fields cannot contain a null character", domain.ErrInvalid)
+		}
 		if utf8.RuneCountInString(v) > 20000 {
 			return fmt.Errorf("%w: card field exceeds 20000 characters", domain.ErrInvalid)
 		}
@@ -121,7 +124,7 @@ func enqueue(r ports.Store, t *domain.Task, kind string, questions []domain.Task
 }
 
 func (s *Service) CreateTask(ctx context.Context, actorID int64, in CreateTaskInput) (out *domain.Task, err error) {
-	if strings.TrimSpace(in.RawDescription) == "" || utf8.RuneCountInString(in.RawDescription) > 20000 {
+	if strings.TrimSpace(in.RawDescription) == "" || utf8.RuneCountInString(in.RawDescription) > 20000 || strings.ContainsRune(in.RawDescription, 0) {
 		return nil, fmt.Errorf("%w: raw_description must contain 1..20000 characters", domain.ErrInvalid)
 	}
 	card := domain.Card{Industry: in.Industry, Topic: in.Topic, Context: in.RawDescription, TagIDs: in.TagIDs}
@@ -237,7 +240,7 @@ func (s *Service) PatchTask(ctx context.Context, actorID, taskID int64, in Draft
 			}
 		}
 		if in.RawDescription != nil {
-			if strings.TrimSpace(*in.RawDescription) == "" || utf8.RuneCountInString(*in.RawDescription) > 20000 {
+			if strings.TrimSpace(*in.RawDescription) == "" || utf8.RuneCountInString(*in.RawDescription) > 20000 || strings.ContainsRune(*in.RawDescription, 0) {
 				return fmt.Errorf("%w: invalid raw_description", domain.ErrInvalid)
 			}
 			if in.Context == nil && card.Context == out.RawDescription {
@@ -309,7 +312,7 @@ func (s *Service) AnswerQuestions(ctx context.Context, actorID, taskID int64, in
 		}
 		answers := map[int64]string{}
 		for _, a := range in.Answers {
-			if strings.TrimSpace(a.Answer) == "" || utf8.RuneCountInString(a.Answer) > 20000 {
+			if strings.TrimSpace(a.Answer) == "" || utf8.RuneCountInString(a.Answer) > 20000 || strings.ContainsRune(a.Answer, 0) {
 				return fmt.Errorf("%w: invalid answer", domain.ErrInvalid)
 			}
 			if _, ok := answers[a.QuestionID]; ok {
@@ -498,12 +501,33 @@ func validateAIResult(job *domain.AIJob, result domain.AIResult) error {
 	if err := result.Evaluation.Validate(); err != nil {
 		return err
 	}
+	// PostgreSQL rejects U+0000 in both text and JSONB. Reject it before the
+	// result transaction, otherwise a valid-looking response keeps its job
+	// leased and gets sent to the paid provider again after every lease expiry.
+	texts := append([]string{}, result.Evaluation.Missing...)
+	for _, c := range result.Evaluation.Criteria {
+		texts = append(texts, c.Reason)
+		texts = append(texts, c.Missing...)
+	}
+	for _, q := range result.Questions {
+		texts = append(texts, q.FieldKey, q.Question)
+		if q.Answer != nil {
+			texts = append(texts, *q.Answer)
+		}
+	}
+	for _, text := range texts {
+		if strings.ContainsRune(text, 0) {
+			return errors.New("AI response contains a null character")
+		}
+	}
+	if result.Card != nil {
+		if err := validateCard(*result.Card); err != nil {
+			return err
+		}
+	}
 	if job.Kind == "generate" {
 		if result.Card == nil {
 			return errors.New("AI response omitted card")
-		}
-		if err := validateCard(*result.Card); err != nil {
-			return err
 		}
 		allowed, seen := map[int64]bool{}, map[int64]bool{}
 		for _, id := range job.Input.Card.TagIDs {
@@ -533,6 +557,18 @@ func validateAIResult(job *domain.AIJob, result domain.AIResult) error {
 		}
 	}
 	return nil
+}
+
+// Only errors explicitly exposing a sanitized message may reach clients.
+// Arbitrary provider/transport errors can contain credentials or task input.
+func aiFailureMessage(err error) string {
+	var public interface{ PublicMessage() string }
+	if errors.As(err, &public) {
+		if message := public.PublicMessage(); strings.TrimSpace(message) != "" {
+			return message
+		}
+	}
+	return "AI request failed or returned invalid data. Retry the check."
 }
 
 func supersede(r ports.Store, t *domain.Task, j *domain.AIJob) error {
@@ -617,7 +653,7 @@ func (s *Service) ProcessNext(ctx context.Context) error {
 		}
 		if callErr != nil {
 			j.Status = "failed"
-			j.Error = "AI request failed or returned invalid data. Retry the check."
+			j.Error = aiFailureMessage(callErr)
 			t.AIStatus = "failed"
 			t.AIError = j.Error
 			if e = r.PutJob(j); e != nil {

@@ -101,6 +101,8 @@ A suitable frontend polling policy is:
 
 The retry endpoint only accepts a failed check for the current revision; otherwise it returns `409`. Ordinary AI failures are not automatically retried. A worker interrupted by a server crash can reclaim an expired job, so an interrupted external call may run again. Polling GET requests do not trigger model calls.
 
+Owner-only `ai_error` and job `error` now distinguish safe provider diagnostics: `401` means check the server API key; `400`/`404` indicate model/schema/endpoint configuration; `429` distinguishes insufficient credits or spending limits from a temporary rate limit. Timeouts and invalid model output also have displayable messages. These are provider statuses inside a saved failure, not the HTTP status of the task GET. Show the message as text without parsing its exact wording; fix server configuration/quota or wait as directed, then let the owner explicitly retry. Retry returns `202`, clears the error, and resumes `pending` processing. No provider body, key, or private input is included in error messages.
+
 ### Optimistic updates and form serialization
 
 PATCH, answer submission, and confirmation require the current numeric `revision`. Use the latest owner response; public task responses have `revision: 0`, which is not a writable version. On `409`, reload the owner's task, preserve the user's unsaved form values separately, and let them reconcile changes before submitting again. A `409` can also mean an invalid workflow transition; inspect the message instead of assuming every conflict is a version mismatch.
@@ -138,13 +140,13 @@ Any student can create a team and automatically becomes its captain. Captains ca
 
 ### Proposals
 
-Only the current captain submits a proposal, containing `team_id`, `solution_idea`, `plan`, positive `duration_days`, and an optional HTTP(S) `prototype_url`. A task may select several teams, and the same team may submit several proposals for the same task. Do not model this as one proposal per team/task pair.
+Only the current captain submits a proposal, containing `team_id`, `solution_idea`, `plan`, integer `duration_days` from 1 to 2,147,483,647, and an optional HTTP(S) `prototype_url`. A task may select several teams, and the same team may submit several proposals for the same task. Do not model this as one proposal per team/task pair.
 
 Proposal decision status is `pending`, `accepted`, or `rejected`. Only the task owner decides. Repeating the same decision is harmless, but changing an existing decision is rejected; acceptance/rejection is final. Acceptance sets proposal and task execution to `in_progress`. An accepted proposal's work can later be cancelled without changing its decision status. Ordinary members read their team's proposals but cannot submit proposals or results.
 
 ### Milestones and completion
 
-Milestones belong to a specific accepted, active proposal. The task owner or its team's current captain may create them. `position: 0` (or omitted) appends after the highest position; an explicit positive position must be unused within that proposal. Milestone EXP defaults to 100 when omitted; an explicit zero is allowed.
+Milestones belong to a specific accepted, active proposal. The task owner or its team's current captain may create them. `position` must be an integer from 0 to 2,147,483,647: zero or omission appends after the highest position, while an explicit positive position must be unused within that proposal. Auto-append returns `409` if the highest position is already at the limit; choose an unused position explicitly. Milestone EXP defaults to 100 when omitted; an explicit zero is allowed.
 
 A business-created milestone is approved immediately. A captain-created milestone requires `POST /milestones/{id}/approve` by the owner before submission. Approval is represented by non-null `approved_at` and `approved_by`; there is no `approved` milestone status. The initial status remains `pending` in either case.
 
@@ -164,7 +166,7 @@ Backend transactions and unique ledger entries prevent duplicate rewards, includ
 
 Success responses are the resource object or array directly, with no `{data: ...}` wrapper. Most reads/updates return `200`, new teams/proposals/milestones return `201`, and task creation/save/answer/retry return `202`. Skill replacement returns `204` with an empty body. Send `Content-Type: application/json` on requests that have a JSON body; bodyless actions do not need a fabricated body.
 
-Requests must contain one JSON object. Unknown properties, trailing JSON, malformed JSON, and oversized bodies are rejected. The body limit is 1 MiB. Follow the request shapes in [json.md](json.md), not the much larger response model. Timestamps are ISO/RFC3339 strings; nullable timestamps, IDs and objects should remain nullable in frontend types. Some nested slices in AI inputs/results and initial evaluation objects serialize as `null`; normalize display lists with `value ?? []`.
+Requests must contain one JSON object. Unknown properties, trailing JSON, malformed JSON, and oversized bodies are rejected. The body limit is 1 MiB. Text input cannot contain NUL (`U+0000`, including JSON `\u0000`); it returns `400 invalid_input`. Follow the request shapes in [json.md](json.md), not the much larger response model. Timestamps are ISO/RFC3339 strings; nullable timestamps, IDs and objects should remain nullable in frontend types. Some nested slices in AI inputs/results and initial evaluation objects serialize as `null`; normalize display lists with `value ?? []`.
 
 Public sanitization preserves JSON keys: `raw_description`, `ai_status`, and `ai_error` become `""`, `revision` becomes `0`, and draft/evaluated fields become `null`. These placeholders are deliberate, not a running AI operation or failed request. Before the first successful private evaluation, `draft_evaluation` is also `null`.
 

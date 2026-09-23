@@ -2,7 +2,7 @@ openapi: "3.0.3"
 info: 
   title: "Larda backend"
   version: "1.0.0"
-  description: "Demo REST API. X-Demo-User-ID selects an existing user; there are no credentials or JWT. Roles and captain permissions are checked by use cases. Body-bearing endpoints accept application/json, reject unknown fields and limit bodies to 1 MiB. Errors use {error:{code,message}}. Common error statuses: 400 invalid_input, 403 forbidden, 404 not_found, 409 conflict, 413 payload_too_large, 415 unsupported_media_type, 500 internal. Task creation and changes persist before OpenAI work, return 202, and must be polled. Failed jobs require explicit retry; explicit fallback mode is selected by server configuration. Public task responses contain only the published card and published evaluation. New edits and their ratings become public only after owner confirmation. A low readiness score does not block publication or proposals. Score weights: context_need 20, data 20, result 15, success_criteria 15, constraints 10, users 10, communication 10. Readiness categories: draft 0–39, working 40–69, ready 70–89, priority 90–100."
+  description: "Demo REST API. X-Demo-User-ID selects an existing user; there are no credentials or JWT. Roles and captain permissions are checked by use cases. Body-bearing endpoints accept application/json, reject unknown fields and limit bodies to 1 MiB. Text input cannot contain NUL (U+0000); invalid input returns 400. Errors use {error:{code,message}}. Common error statuses: 400 invalid_input, 403 forbidden, 404 not_found, 409 conflict, 413 payload_too_large, 415 unsupported_media_type, 500 internal. Task creation and changes persist before OpenAI work, return 202, and must be polled. Failed jobs require explicit retry; explicit fallback mode is selected by server configuration. Public task responses contain only the published card and published evaluation. New edits and their ratings become public only after owner confirmation. A low readiness score does not block publication or proposals. Score weights: context_need 20, data 20, result 15, success_criteria 15, constraints 10, users 10, communication 10. Readiness categories: draft 0–39, working 40–69, ready 70–89, priority 90–100."
 servers: 
   - 
     url: "http://localhost:8080"
@@ -420,6 +420,7 @@ paths:
   "/api/v1/tasks/{taskID}/ai/retry": 
     post: 
       summary: "Retry the failed AI operation explicitly"
+      description: "Owner only, no request body. Requires an editable task with a failed current check; otherwise 409. Correct the cause shown in ai_error, then explicitly retry. Returns 202, clears the error and queues the same job as pending; poll owner task detail until succeeded or failed. Ordinary provider failures are never automatically retried."
       tags: 
         - "Tasks"
       security: 
@@ -988,7 +989,7 @@ paths:
       summary: "Propose a milestone"
       tags: 
         - "Milestones"
-      description: "For an accepted active proposal, the task owner or the team's captain may propose a stage and reward. A business-created stage is approved immediately; a captain-created stage requires business approval. Omitted exp_reward defaults to 100; omitted or zero position appends the stage."
+      description: "For an accepted active proposal, the task owner or the team's captain may propose a stage and reward. A business-created stage is approved immediately; a captain-created stage requires business approval. Omitted exp_reward defaults to 100; omitted or zero position appends the stage. Position cannot exceed 2147483647. If the highest position already equals this limit, auto-append returns 409; choose an unused positive position explicitly."
       security: 
         - 
           DemoUser: []
@@ -1373,7 +1374,7 @@ components:
             - ""
         ai_error: 
           type: "string"
-          description: "Owner only; an API-safe failure summary."
+          description: "Owner-only sanitized diagnostic; empty for public readers. Distinguishes invalid API key (provider 401), model/schema/endpoint configuration (400/404), quota or rate limit (429), timeouts and invalid output. No upstream body, secret or private input is exposed. Display as text without relying on exact wording. Provider status numbers are diagnostic text: GET still returns 200 with ai_status failed."
         publication_status: 
           type: "string"
           enum: 
@@ -1480,6 +1481,7 @@ components:
           minimum: 0
         error: 
           type: "string"
+          description: "Owner-only sanitized failure diagnostic, also stored as Task.ai_error. Explicit retry clears it. Unknown adapter errors use a generic message."
         input: 
           type: "object"
         result: 
@@ -1556,6 +1558,7 @@ components:
           type: "integer"
           format: "int64"
           minimum: 1
+          maximum: 2147483647
         title: 
           type: "string"
         description: 
@@ -1626,6 +1629,7 @@ components:
           type: "integer"
           format: "int64"
           minimum: 1
+          maximum: 2147483647
         prototype_url: 
           type: "string"
         status: 
@@ -1873,6 +1877,7 @@ components:
           type: "integer"
           format: "int64"
           minimum: 1
+          maximum: 2147483647
         prototype_url: 
           type: "string"
       required: 
@@ -1896,6 +1901,7 @@ components:
           type: "integer"
           format: "int64"
           minimum: 0
+          maximum: 2147483647
       required: 
         - "title"
       additionalProperties: false
