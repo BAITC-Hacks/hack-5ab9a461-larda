@@ -36,11 +36,15 @@ export interface ServerTask extends ServerCard {
   publication_status: string;
   execution_status: string;
   confirmed_at: string | null;
+  score_breakdown?: { source: string };
+  industry?: string;
+  topic?: string;
 }
 export interface ServerQuestion {
   id: number;
   question: string;
   position: number;
+  answer?: string | null;
 }
 export interface ServerMilestone {
   id: number;
@@ -64,7 +68,11 @@ export interface ServerProposal {
 }
 export interface ServerProfile {
   user: ServerUser;
-  exp_history: { id: number; amount: number; reason: string }[] | null;
+  tags?: { id: number; name: string }[] | null;
+  achievements?: { achievement_id: number; unlocked_at: string }[] | null;
+  exp_history:
+    | { id: number; amount: number; reason: string; task_id?: number | null }[]
+    | null;
 }
 export class BackendError extends Error {
   constructor(
@@ -124,4 +132,13 @@ export function createBackendClient(
     }
     return response.status === 204 ? (undefined as T) : response.json();
   };
+}
+
+export interface ServerAchievement {
+  id: number;
+  title: string;
+  description: string;
+  role_scope: string;
+  exp_reward: number;
+  is_active: boolean;
 }

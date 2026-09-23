@@ -8,3 +8,9 @@ tmp
 *.exe
 *.docx
 coverage.out
+
+node_modules
+dist
+test-results
+playwright-report
+*.tsbuildinfo

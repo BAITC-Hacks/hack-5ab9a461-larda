@@ -1,3 +1,5 @@
+> **Основной режим теперь серверный.** `npm run dev` использует same-origin `/api` и proxy на порт 8080. Старые маршруты/WorkspaceRepository ниже относятся к `npm run dev:local`. Актуальная инструкция и ограничения — [RUN_INTEGRATED.md](RUN_INTEGRATED.md).
+
 # Frontend Larda
 
 ## Запуск и проверки

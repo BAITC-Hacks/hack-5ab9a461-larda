@@ -38,7 +38,8 @@ test("server workspace sends proposals and review actions with real persona IDs,
     const actor = req.headers()["x-demo-user-id"];
     const body = req.postDataJSON();
     let result: unknown;
-    if (path === "/users") result = users;
+    if (path === "/achievements") result = [];
+    else if (path === "/users") result = users;
     else if (path === "/teams") result = teams;
     else if (/^\/users\/\d+$/.test(path))
       result = {
@@ -160,7 +161,9 @@ test("server workspace sends proposals and review actions with real persona IDs,
     await page
       .getByRole("button", { name: "Отправить результат", exact: true })
       .click();
-    await expect(page.getByText("submitted · 200 XP на команду")).toBeVisible();
+    await expect(
+      page.getByText("На проверке · 200 XP на команду"),
+    ).toBeVisible();
     await persona.selectOption("7");
     await page
       .getByRole("button", { name: "Открыть задачу №41", exact: true })
@@ -173,7 +176,7 @@ test("server workspace sends proposals and review actions with real persona IDs,
       .click();
     await expect(
       page.getByText(
-        `${accepted ? "completed" : "rejected"} · 200 XP на команду`,
+        `${accepted ? "Завершено" : "Нужна доработка"} · 200 XP на команду`,
       ),
     ).toBeVisible();
   }
@@ -238,7 +241,8 @@ test("AI queues, polls, sends all answers, confirms revision and publishes witho
     const path = new URL(r.url()).pathname.replace("/api/v1", "");
     const body = r.postDataJSON();
     let result: unknown;
-    if (path === "/users") result = [user];
+    if (path === "/achievements") result = [];
+    else if (path === "/users") result = [user];
     else if (path === "/teams") result = [];
     else if (path === "/users/8") result = { user, exp_history: [] };
     else if (path === "/tasks/mine") result = task ? [task] : [];
