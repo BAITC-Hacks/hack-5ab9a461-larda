@@ -16,6 +16,19 @@ type Service struct {
 
 func New(repo ports.Repository, ai ports.AI) *Service { return &Service{repo: repo, ai: ai} }
 func (s *Service) Health(ctx context.Context) error   { return s.repo.Ping(ctx) }
+
+// AIMode describes the running provider, not the source of a previously saved
+// evaluation. It deliberately exposes no credentials, endpoint or task data.
+func (s *Service) AIMode() string {
+	if s.ai != nil {
+		switch mode := s.ai.Source(); mode {
+		case "openai", "fallback":
+			return mode
+		}
+	}
+	return "unknown"
+}
+
 func (s *Service) Users(ctx context.Context) (out []domain.User, err error) {
 	err = s.repo.Read(ctx, func(r ports.Store) error { out, err = r.Users(); return err })
 	return

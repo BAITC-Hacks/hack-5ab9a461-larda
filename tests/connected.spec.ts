@@ -38,7 +38,8 @@ test("server workspace sends proposals and review actions with real persona IDs,
     const actor = req.headers()["x-demo-user-id"];
     const body = req.postDataJSON();
     let result: unknown;
-    if (path === "/achievements") result = [];
+    if (path === "/runtime") result = { ai_mode: "openai" };
+    else if (path === "/achievements") result = [];
     else if (path === "/users") result = users;
     else if (path === "/teams") result = teams;
     else if (/^\/users\/\d+$/.test(path))
@@ -129,25 +130,39 @@ test("server workspace sends proposals and review actions with real persona IDs,
   await page
     .getByRole("button", { name: "Открыть задачу №41", exact: true })
     .click();
+  await page
+    .getByRole("button", { name: "Подать заявку", exact: true })
+    .click();
   await page.getByLabel("Идея решения").fill("Моя идея");
+  await page
+    .getByRole("button", { name: "К плану работы", exact: true })
+    .click();
   await page.getByLabel("План работы").fill("Мой план");
+  await page
+    .getByRole("button", { name: "Проверить заявку", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Отправить заявку", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Реальная команда · Заявка №90" }),
+    page.getByRole("heading", { name: "Заявка отправлена", exact: true }),
   ).toBeVisible();
   await persona.selectOption("7");
+  await page.getByRole("link", { name: "Мои задачи", exact: true }).click();
   await page
     .getByRole("button", { name: "Открыть задачу №41", exact: true })
     .click();
+  await page.getByRole("button", { name: /Заявки и результаты/ }).click();
   await page
     .getByRole("button", { name: "Выбрать команду", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Добавить этап", exact: true })
     .click();
   await page.getByLabel("Название этапа").fill("Прототип");
   await page.getByLabel("Критерии результата").fill("Демонстрация работы");
   await page
-    .getByRole("button", { name: "Добавить этап", exact: true })
+    .getByRole("button", { name: "Сохранить этап", exact: true })
     .click();
   for (const accepted of [false, true]) {
     await persona.selectOption("19");
@@ -155,19 +170,26 @@ test("server workspace sends proposals and review actions with real persona IDs,
       .getByRole("button", { name: "Открыть задачу №41", exact: true })
       .first()
       .click();
+    await page.getByRole("button", { name: /Моя команда/ }).click();
+    await page
+      .getByRole("button", {
+        name: accepted ? "Исправить результат" : "Сдать этап",
+        exact: true,
+      })
+      .click();
     await page
       .getByLabel("Ссылка на результат")
       .fill("https://example.com/work");
     await page
       .getByRole("button", { name: "Отправить результат", exact: true })
       .click();
-    await expect(
-      page.getByText("На проверке · 200 XP на команду"),
-    ).toBeVisible();
+    await expect(page.getByText("На проверке", { exact: true })).toBeVisible();
     await persona.selectOption("7");
+    await page.getByRole("link", { name: "Мои задачи", exact: true }).click();
     await page
       .getByRole("button", { name: "Открыть задачу №41", exact: true })
       .click();
+    await page.getByRole("button", { name: /Заявки и результаты/ }).click();
     await page
       .getByRole("button", {
         name: accepted ? "Принять результат" : "Вернуть на доработку",
@@ -175,9 +197,9 @@ test("server workspace sends proposals and review actions with real persona IDs,
       })
       .click();
     await expect(
-      page.getByText(
-        `${accepted ? "Завершено" : "Нужна доработка"} · 200 XP на команду`,
-      ),
+      page.getByText(accepted ? "Принят бизнесом" : "Нужна доработка", {
+        exact: true,
+      }),
     ).toBeVisible();
   }
   await page
@@ -190,6 +212,7 @@ test("server workspace sends proposals and review actions with real persona IDs,
     })
     .click();
   await persona.selectOption("19");
+  await page.getByRole("link", { name: "Мой прогресс", exact: true }).click();
   await expect(page.getByText("Опыт по данным сервера: 100 XP")).toBeVisible();
 });
 
@@ -241,7 +264,8 @@ test("AI queues, polls, sends all answers, confirms revision and publishes witho
     const path = new URL(r.url()).pathname.replace("/api/v1", "");
     const body = r.postDataJSON();
     let result: unknown;
-    if (path === "/achievements") result = [];
+    if (path === "/runtime") result = { ai_mode: "openai" };
+    else if (path === "/achievements") result = [];
     else if (path === "/users") result = [user];
     else if (path === "/teams") result = [];
     else if (path === "/users/8") result = { user, exp_history: [] };
@@ -315,16 +339,23 @@ test("AI queues, polls, sends all answers, confirms revision and publishes witho
   await page.getByLabel("Адрес backend").fill("http://ai.test");
   await page.getByRole("button", { name: "Подключиться", exact: true }).click();
   await page
+    .getByRole("button", { name: "Создать задачу", exact: true })
+    .click();
+  await page
     .getByLabel("Описание бизнес-проблемы")
     .fill("Наша кофейня списывает молоко");
   await page
     .getByRole("button", { name: "Создать и запустить анализ", exact: true })
     .click();
-  for (let i = 1; i <= 3; i++)
+  for (let i = 1; i <= 3; i++) {
     await page.getByLabel(`Уточнение ${i}`, { exact: true }).fill(`Ответ ${i}`);
-  await page
-    .getByRole("button", { name: "Отправить все ответы", exact: true })
-    .click();
+    await page
+      .getByRole("button", {
+        name: i < 3 ? "Следующий вопрос" : "Подготовить карточку",
+        exact: true,
+      })
+      .click();
+  }
   await expect(
     page.getByRole("button", { name: "Подтвердить карточку", exact: true }),
   ).toBeDisabled();

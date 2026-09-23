@@ -40,6 +40,10 @@ func New(service *application.Service, origins []string) *gin.Engine {
 	r.GET("/healthz", ready)
 	r.GET("/readyz", ready)
 	v1 := r.Group("/api/v1", h.demoActor())
+	v1.GET("/runtime", func(c *gin.Context) {
+		c.Header("Cache-Control", "no-store")
+		c.JSON(http.StatusOK, gin.H{"ai_mode": service.AIMode()})
+	})
 	h.commonRoutes(v1)
 	h.taskRoutes(v1)
 	h.workflowRoutes(v1)

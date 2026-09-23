@@ -1,4 +1,4 @@
-> **Текущее состояние:** основной frontend подключён к живому API и PostgreSQL; сквозной сценарий проверен без HTTP-заглушек в `AI_MODE=fallback`. Запуск описан в [RUN_INTEGRATED.md](RUN_INTEGRATED.md). Ниже — история анализа и прежних ограничений; `/connected` больше не единственная точка доступа к API.
+> **Текущее состояние:** основной frontend подключён к живому API и PostgreSQL; сквозной сценарий проверен без HTTP-заглушек в `AI_MODE=fallback`. Отдельно через Docker проверены вопросы и карточка с `source=openai`; [диагностика ИИ и CORS](AI_CONNECTION.md). Запуск описан в [RUN_INTEGRATED.md](RUN_INTEGRATED.md). Ниже — история анализа и прежних ограничений; `/connected` больше не единственная точка доступа к API.
 
 > После merge `origin/main` (`b448574`) backend уже есть в этом репозитории. См. [BACKEND.md](../BACKEND.md), `compose.yaml`, `docs/openapi.yaml`. Указания ниже об отсутствии backend-исходников — история проверки до слияния. Сервер автоматически не запускался.
 

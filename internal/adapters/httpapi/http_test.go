@@ -7,8 +7,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"larda/internal/adapters/ai"
 	"larda/internal/application"
 	"larda/internal/domain"
 	"larda/internal/ports"
@@ -60,6 +62,33 @@ func (r *fakeRepository) Tasks(ports.TaskFilter) ([]domain.Task, error) {
 func testRouter(repo *fakeRepository) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	return New(application.New(repo, nil), []string{"http://localhost:3000"})
+}
+
+func TestRuntimeReportsCurrentProviderWithoutCallingIt(t *testing.T) {
+	openai, err := ai.NewOpenAI("runtime-secret", "https://example.test/v1", "configured-model", time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		name     string
+		provider ports.AI
+		want     string
+	}{
+		{"external", openai, `{"ai_mode":"openai"}`},
+		{"demo", ai.NewFallback(), `{"ai_mode":"fallback"}`},
+		{"unconfigured", nil, `{"ai_mode":"unknown"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			r := New(application.New(&fakeRepository{pingError: errors.New("offline")}, tc.provider), nil)
+			response := request(r, http.MethodGet, "/api/v1/runtime", "", nil)
+			if response.Code != http.StatusOK || response.Body.String() != tc.want {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+			if response.Header().Get("Cache-Control") != "no-store" {
+				t.Fatal("runtime configuration must not be cached")
+			}
+		})
+	}
 }
 
 func request(r http.Handler, method, path, body string, headers map[string]string) *httptest.ResponseRecorder {

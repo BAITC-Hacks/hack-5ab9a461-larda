@@ -16,7 +16,14 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
   const member = team.members.find((m: any) => m.role === "member").user_id;
   const before = await (await request.get(`/api/v1/users/${captain}`)).json();
   const title = `Проверка интеграции ${Date.now()}`;
+  const writes: string[] = [];
+  page.on("request", (req) => {
+    if (req.method() === "POST") writes.push(new URL(req.url()).pathname);
+  });
   await page.goto(`/?user=${business.id}`);
+  await page
+    .getByRole("button", { name: "Создать задачу", exact: true })
+    .click();
   await page
     .getByLabel("Описание бизнес-проблемы")
     .fill(`${title}\nКофейне нужен учёт списаний молока.`);
@@ -24,22 +31,61 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
     .getByRole("button", { name: "Создать и запустить анализ", exact: true })
     .click();
   await expect(
-    page.getByRole("heading", { name: "Уточнения AI", exact: true }),
+    page.getByRole("heading", { name: "Уточним детали", exact: true }),
   ).toBeVisible({ timeout: 20000 });
   const taskId = new URL(page.url()).searchParams.get("task");
   expect(taskId).toBeTruthy();
-  const questionForm = page.locator("form").filter({
-    has: page.getByRole("button", {
-      name: "Отправить все ответы",
-      exact: true,
-    }),
+  const wizard = page.getByRole("region", {
+    name: "Создание задачи",
+    exact: true,
   });
-  const textareas = questionForm.locator("textarea");
-  for (let i = 0; i < (await textareas.count()); i++)
-    await textareas.nth(i).fill(`Проверенный факт бизнеса ${i + 1}`);
-  await page
-    .getByRole("button", { name: "Отправить все ответы", exact: true })
+  await expect(wizard.locator("textarea")).toBeVisible({ timeout: 20000 });
+  const questions = await (
+    await request.get(`/api/v1/tasks/${taskId}/questions`, {
+      headers: { "X-Demo-User-ID": String(business.id) },
+    })
+  ).json();
+  expect(questions.length).toBeGreaterThanOrEqual(3);
+  await wizard.locator("textarea").fill("Первый сохранённый в форме ответ");
+  await wizard
+    .getByRole("button", { name: "Следующий вопрос", exact: true })
     .click();
+  await wizard.locator("textarea").fill("Второй сохранённый в форме ответ");
+  await wizard.getByRole("button", { name: "← Назад", exact: true }).click();
+  await expect(wizard.locator("textarea")).toHaveValue(
+    "Первый сохранённый в форме ответ",
+  );
+  await wizard.getByRole("button", { name: "← Назад", exact: true }).click();
+  await expect(page.getByLabel("Описание бизнес-проблемы")).toHaveValue(
+    `${title}\nКофейне нужен учёт списаний молока.`,
+  );
+  expect(writes.filter((path) => path === "/api/v1/tasks")).toHaveLength(1);
+  expect(writes.filter((path) => path.endsWith("/answers"))).toHaveLength(0);
+  await wizard
+    .getByRole("button", { name: "К уточнениям", exact: true })
+    .click();
+  await expect(wizard.locator("textarea")).toHaveValue(
+    "Первый сохранённый в форме ответ",
+  );
+  for (let index = 0; index < questions.length; index++) {
+    await wizard
+      .locator("textarea")
+      .fill(`Проверенный факт бизнеса ${index + 1}`);
+    await wizard
+      .getByRole("button", {
+        name:
+          index + 1 < questions.length
+            ? "Следующий вопрос"
+            : "Подготовить карточку",
+        exact: true,
+      })
+      .click();
+    if (index + 1 < questions.length)
+      expect(writes.filter((path) => path.endsWith("/answers"))).toHaveLength(
+        0,
+      );
+  }
+  expect(writes.filter((path) => path.endsWith("/answers"))).toHaveLength(1);
   await expect(
     page.getByRole("button", { name: "Подтвердить карточку", exact: true }),
   ).toBeVisible({ timeout: 20000 });
@@ -53,6 +99,12 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
   await expect(
     page.getByRole("button", { name: "Опубликовать задачу", exact: true }),
   ).toHaveCount(0);
+  await page
+    .getByRole("button", { name: "К моим задачам", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: `Открыть задачу №${taskId}`, exact: true })
+    .click();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: title, exact: true }),
@@ -62,34 +114,87 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
     page.getByText("Подать заявку может капитан команды.", { exact: false }),
   ).toBeVisible();
   await page.goto(`/?user=${captain}&task=${taskId}`);
+  await page
+    .getByRole("button", { name: "Подать заявку", exact: true })
+    .click();
+  await page
+    .getByRole("region", { name: "Подать заявку", exact: true })
+    .getByRole("combobox")
+    .selectOption(String(team.id));
   await page.getByLabel("Идея решения").fill("Прототип учёта списаний");
+  await page
+    .getByRole("button", { name: "К плану работы", exact: true })
+    .click();
   await page
     .getByLabel("План работы")
     .fill("Анализ данных, прототип, проверка");
+  await page.getByLabel("Срок в днях").fill("9");
+  await page
+    .getByRole("button", { name: "Проверить заявку", exact: true })
+    .click();
+  const proposalForm = page.getByRole("region", {
+    name: "Подать заявку",
+    exact: true,
+  });
+  await proposalForm
+    .getByRole("button", { name: "← Назад", exact: true })
+    .click();
+  await expect(page.getByLabel("План работы")).toHaveValue(
+    "Анализ данных, прототип, проверка",
+  );
+  await expect(page.getByLabel("Срок в днях")).toHaveValue("9");
+  await proposalForm
+    .getByRole("button", { name: "← Назад", exact: true })
+    .click();
+  await expect(page.getByLabel("Идея решения")).toHaveValue(
+    "Прототип учёта списаний",
+  );
+  expect(writes.filter((path) => path.endsWith("/proposals"))).toHaveLength(0);
+  await page
+    .getByRole("button", { name: "К плану работы", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Проверить заявку", exact: true })
+    .click();
   await page
     .getByRole("button", { name: "Отправить заявку", exact: true })
     .click();
-  await expect(page.getByRole("heading", { name: /Заявка №/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Заявка отправлена", exact: true }),
+  ).toBeVisible();
+  expect(writes.filter((path) => path.endsWith("/proposals"))).toHaveLength(1);
+  await page.getByRole("button", { name: "К задаче", exact: true }).click();
   const afterProposal = await (
     await request.get(`/api/v1/users/${captain}`)
   ).json();
   expect(afterProposal.user.exp).toBe(before.user.exp);
   await page.goto(`/?user=${business.id}&task=${taskId}`);
+  await page.getByRole("button", { name: /^Заявки и результаты/ }).click();
   await page
     .getByRole("button", { name: "Выбрать команду", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Добавить этап", exact: true })
     .click();
   await page.getByLabel("Название этапа").fill("Рабочий прототип");
   await page
     .getByLabel("Критерии результата")
     .fill("Запись списания и отчёт за неделю");
   await page
-    .getByRole("button", { name: "Добавить этап", exact: true })
+    .getByRole("button", { name: "Сохранить этап", exact: true })
     .click();
   await expect(
     page.getByRole("heading", { name: "Рабочий прототип", exact: true }),
   ).toBeVisible();
   for (const accepted of [false, true]) {
     await page.goto(`/?user=${captain}&task=${taskId}`);
+    await page.getByRole("button", { name: /^Моя команда/ }).click();
+    await page
+      .getByRole("button", {
+        name: accepted ? "Исправить результат" : "Сдать этап",
+        exact: true,
+      })
+      .click();
     await page
       .getByLabel("Ссылка на результат")
       .fill("https://example.com/larda-integration-evidence");
@@ -100,6 +205,7 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
       page.getByRole("link", { name: "Открыть результат ↗" }),
     ).toBeVisible();
     await page.goto(`/?user=${business.id}&task=${taskId}`);
+    await page.getByRole("button", { name: /^Заявки и результаты/ }).click();
     await page
       .getByRole("button", {
         name: accepted ? "Принять результат" : "Вернуть на доработку",
@@ -132,9 +238,6 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
   const after = await (await request.get(`/api/v1/users/${captain}`)).json();
   expect(after.user.exp).toBeGreaterThan(before.user.exp);
   await page.goto(`/?user=${captain}&task=${taskId}`);
-  await expect(
-    page.getByText(`Опыт по данным сервера: ${after.user.exp} XP`),
-  ).toBeVisible();
   await page.reload();
   await expect(
     page.getByRole("heading", { name: title, exact: true }),
@@ -173,6 +276,10 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
   await expect(
     page.getByRole("heading", { name: "Каталог задач", exact: true }),
   ).toBeVisible();
+  await page.getByRole("link", { name: "Мой прогресс", exact: true }).click();
+  await expect(
+    page.getByText(`Опыт по данным сервера: ${after.user.exp} XP`),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Достижения", exact: true }),
   ).toBeVisible();
@@ -189,7 +296,7 @@ test("live PostgreSQL + API + frontend: AI, publication, proposal, rework, verif
     .getByRole("navigation", { name: "Основная навигация" })
     .getByRole("link", { name: "Каталог задач", exact: true })
     .click();
-  await expect(page).toHaveURL(/#catalog$/);
+  await expect(page).toHaveURL(/view=catalog/);
 
   await page
     .getByRole("button", { name: `Открыть задачу №${taskId}`, exact: true })
@@ -277,7 +384,7 @@ test("switching from a direct private draft link clears the task for the student
   expect(draft).toBeTruthy();
   await page.goto(`/business/tasks/${draft.id}?user=${owner.id}`);
   await expect(
-    page.getByRole("button", { name: "← К списку задач", exact: true }),
+    page.getByRole("button", { name: "Вернуться к списку задач", exact: true }),
   ).toBeVisible();
   await page
     .getByLabel("Профиль", { exact: true })
@@ -286,5 +393,5 @@ test("switching from a direct private draft link clears the task for the student
     page.getByRole("heading", { name: "Каталог задач", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  expect(new URL(page.url()).searchParams.get("task")).toBe("");
+  expect(new URL(page.url()).searchParams.get("task")).toBeFalsy();
 });

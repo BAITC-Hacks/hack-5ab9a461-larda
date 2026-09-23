@@ -67,6 +67,28 @@ paths:
           "$ref": "#/components/responses/Error"
         default: 
           "$ref": "#/components/responses/Error"
+  "/api/v1/runtime":
+    get:
+      summary: "Current configured AI mode (no provider call or credentials)"
+      tags: ["Health"]
+      responses:
+        "200":
+          description: "Public runtime metadata; historical evaluations retain their own source."
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                enum: ["no-store"]
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [ai_mode]
+                properties:
+                  ai_mode:
+                    type: string
+                    enum: [openai, fallback, unknown]
   "/api/v1/users": 
     get: 
       summary: "List demo users"
