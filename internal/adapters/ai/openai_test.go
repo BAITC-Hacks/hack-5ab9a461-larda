@@ -3,6 +3,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -121,6 +122,74 @@ func TestOpenAIFailureIsSanitizedAndNeverFallsBackOrRetries(t *testing.T) {
 	}
 }
 
+func TestOpenAIReportsActionableSafeProviderFailures(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		status int
+		body   string
+		want   string
+	}{
+		{"invalid request", 400, `{"error":{"message":"test-secret private task"}}`, "structured outputs"},
+		{"authentication", 401, `{"error":{"message":"test-secret private task"}}`, "OPENAI_API_KEY"},
+		{"permissions", 403, `{"error":{"message":"test-secret private task"}}`, "permissions"},
+		{"model or endpoint", 404, `{"error":{"message":"test-secret private task"}}`, "OPENAI_MODEL"},
+		{"quota", 429, `{"error":{"code":"insufficient_quota","message":"test-secret private task"}}`, "credits"},
+		{"rate limit", 429, `{"error":{"code":"rate_limit_exceeded","message":"test-secret private task"}}`, "wait before retrying"},
+		{"unknown upstream code", 429, `{"error":{"code":"test-secret private task"}}`, "rate limit"},
+		{"invalid upstream JSON", 429, `test-secret private task`, "rate limit"},
+		{"server failure", 503, `{"error":{"message":"test-secret private task"}}`, "temporary provider failure"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var calls atomic.Int32
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				calls.Add(1)
+				w.WriteHeader(tc.status)
+				_, _ = w.Write([]byte(tc.body))
+			}))
+			defer server.Close()
+			_, err := newTestAI(t, server).Generate(context.Background(), "evaluate", domain.AIInput{})
+			var diagnostic interface{ PublicMessage() string }
+			if !errors.As(err, &diagnostic) || !strings.Contains(diagnostic.PublicMessage(), tc.want) {
+				t.Fatalf("missing actionable diagnostic containing %q: %v", tc.want, err)
+			}
+			if strings.Contains(diagnostic.PublicMessage(), "test-secret") || strings.Contains(diagnostic.PublicMessage(), "private task") {
+				t.Fatal("upstream response contents escaped into public diagnostic")
+			}
+			if calls.Load() != 1 {
+				t.Fatal("provider failure was automatically retried")
+			}
+		})
+	}
+}
+
+func TestOpenAIReportsIncompleteResponseReason(t *testing.T) {
+	for _, tc := range []struct{ reason, want string }{
+		{"max_output_tokens", "output token budget exhausted"},
+		{"content_filter", "content filter"},
+		{"test-secret private task", "incomplete or failed"},
+	} {
+		t.Run(tc.reason, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"status": "incomplete", "incomplete_details": map[string]string{"reason": tc.reason},
+					"output": []any{map[string]any{"type": "message", "content": []any{
+						map[string]string{"type": "output_text", "text": "test-secret private task"},
+					}}},
+				})
+			}))
+			defer server.Close()
+			_, err := newTestAI(t, server).Generate(context.Background(), "evaluate", domain.AIInput{})
+			var diagnostic interface{ PublicMessage() string }
+			if !errors.As(err, &diagnostic) || !strings.Contains(diagnostic.PublicMessage(), tc.want) {
+				t.Fatalf("wrong incomplete diagnostic: %v", err)
+			}
+			if strings.Contains(diagnostic.PublicMessage(), "test-secret") {
+				t.Fatal("partial output or arbitrary provider reason was exposed")
+			}
+		})
+	}
+}
+
 func TestOpenAIPreservesModelScoreAcrossEntireRange(t *testing.T) {
 	for _, full := range []bool{false, true} {
 		payload := testPayload("evaluate")
@@ -170,6 +239,14 @@ func TestOpenAIRejectsMalformedEvaluationAndQuestions(t *testing.T) {
 		{"blank reason", "evaluate", func(p map[string]any) {
 			p["evaluation"].(map[string]any)["criteria"].([]map[string]any)[0]["reason"] = "  "
 		}},
+		{"NUL in reason", "evaluate", func(p map[string]any) {
+			p["evaluation"].(map[string]any)["criteria"].([]map[string]any)[0]["reason"] = "bad\x00text"
+		}},
+		{"NUL in missing detail", "evaluate", func(p map[string]any) {
+			p["evaluation"].(map[string]any)["missing"] = []string{"bad\x00text"}
+		}},
+		{"NUL in question", "questions", func(p map[string]any) { p["questions"].([]map[string]any)[0]["question"] = "bad\x00text" }},
+		{"NUL in generated card", "generate", func(p map[string]any) { p["card"] = domain.Card{Title: "bad\x00text", TagIDs: []int64{}} }},
 		{"too few questions", "questions", func(p map[string]any) { p["questions"] = p["questions"].([]map[string]any)[:2] }},
 		{"unknown field", "questions", func(p map[string]any) { p["questions"].([]map[string]any)[0]["field_key"] = "owner_id" }},
 		{"wrong order", "questions", func(p map[string]any) { p["questions"].([]map[string]any)[0]["position"] = 2 }},

@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"reflect"
 	"sort"
+	"strconv"
 	"testing"
 
 	"larda/internal/domain"
@@ -351,5 +353,54 @@ func TestCaptainTransferMaintainsCaptainAndPreventsSelfRemoval(t *testing.T) {
 	}
 	if _, err := s.RemoveMember(context.Background(), 3, 1, 2); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestProposalDurationFitsDatabaseInteger(t *testing.T) {
+	s, r := fixture()
+	in := ProposalInput{TeamID: 1, SolutionIdea: "Prototype", Plan: "Deliver", DurationDays: math.MaxInt32}
+	if _, err := s.SubmitProposal(context.Background(), 2, 1, in); err != nil {
+		t.Fatalf("largest supported duration: %v", err)
+	}
+	if strconv.IntSize < 64 {
+		return // JSON decoding already rejects larger integers on 32-bit targets.
+	}
+	tooLarge := int64(math.MaxInt32) + 1
+	in.DurationDays = int(tooLarge)
+	count := len(r.proposals)
+	if _, err := s.SubmitProposal(context.Background(), 2, 1, in); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("oversized duration: got %v, want invalid input", err)
+	}
+	if len(r.proposals) != count {
+		t.Fatal("invalid proposal was saved")
+	}
+}
+
+func TestMilestonePositionFitsDatabaseInteger(t *testing.T) {
+	s, r := fixture()
+	if _, err := s.AddMilestone(context.Background(), 1, 1, MilestoneInput{Title: "Last position", Position: math.MaxInt32}); err != nil {
+		t.Fatalf("largest supported position: %v", err)
+	}
+	count := len(r.milestones)
+	if _, err := s.AddMilestone(context.Background(), 1, 1, MilestoneInput{Title: "Auto append"}); !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("automatic position past maximum: got %v, want conflict", err)
+	}
+	if len(r.milestones) != count {
+		t.Fatal("overflowing automatic position was saved")
+	}
+	// The caller can still use an unoccupied explicit position.
+	if _, err := s.AddMilestone(context.Background(), 1, 1, MilestoneInput{Title: "Earlier position", Position: 2}); err != nil {
+		t.Fatalf("unused explicit position: %v", err)
+	}
+	if strconv.IntSize < 64 {
+		return
+	}
+	tooLarge := int64(math.MaxInt32) + 1
+	count = len(r.milestones)
+	if _, err := s.AddMilestone(context.Background(), 1, 1, MilestoneInput{Title: "Oversized position", Position: int(tooLarge)}); !errors.Is(err, domain.ErrInvalid) {
+		t.Fatalf("oversized position: got %v, want invalid input", err)
+	}
+	if len(r.milestones) != count {
+		t.Fatal("invalid milestone was saved")
 	}
 }

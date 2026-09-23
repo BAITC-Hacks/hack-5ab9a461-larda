@@ -3,7 +3,6 @@ package ai
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"strings"
 	"unicode/utf8"
@@ -113,7 +112,9 @@ func validateJSON(value any, rule schema) bool {
 		}
 	case "string":
 		str, ok := value.(string)
-		if !ok {
+		// PostgreSQL text/jsonb cannot persist NUL. Reject it before a model
+		// result can roll back job completion and enter lease recovery.
+		if !ok || strings.ContainsRune(str, '\x00') {
 			return false
 		}
 		if max, ok := rule["maxLength"].(int); ok && utf8.RuneCountInString(str) > max {
@@ -158,17 +159,17 @@ func decodeResult(data []byte, kind string, input domain.AIInput) (domain.AIResu
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
 	if err := decoder.Decode(&raw); err != nil || !validateJSON(raw, responseSchema(kind)) {
-		return result, fmt.Errorf("openai: response does not match the required schema")
+		return result, safeError("openai: response does not match the required schema; retry the saved job")
 	}
 	if err := decoder.Decode(new(any)); err != io.EOF {
-		return result, fmt.Errorf("openai: unexpected trailing response data")
+		return result, safeError("openai: unexpected trailing response data; retry the saved job")
 	}
 	if err := json.Unmarshal(data, &result); err != nil {
-		return result, fmt.Errorf("openai: invalid structured response")
+		return result, safeError("openai: invalid structured response; retry the saved job")
 	}
 	result.Evaluation.Source = "openai"
 	if err := result.Evaluation.Validate(); err != nil {
-		return domain.AIResult{}, fmt.Errorf("openai: invalid score or criterion breakdown")
+		return domain.AIResult{}, safeError("openai: invalid score or criterion breakdown; retry the saved job")
 	}
 	missing := append([]string{}, result.Evaluation.Missing...)
 	for _, criterion := range result.Evaluation.Criteria {
@@ -176,25 +177,25 @@ func decodeResult(data []byte, kind string, input domain.AIInput) (domain.AIResu
 	}
 	for _, item := range missing {
 		if strings.TrimSpace(item) == "" {
-			return domain.AIResult{}, fmt.Errorf("openai: empty missing-information description")
+			return domain.AIResult{}, safeError("openai: empty missing-information description; retry the saved job")
 		}
 	}
 	if kind == "questions" {
 		seen := map[string]bool{}
 		for i, question := range result.Questions {
 			if question.Position != i+1 || strings.TrimSpace(question.Question) == "" || seen[question.FieldKey] {
-				return domain.AIResult{}, fmt.Errorf("openai: invalid question order, duplicate field or empty question")
+				return domain.AIResult{}, safeError("openai: invalid question order, duplicate field or empty question; retry the saved job")
 			}
 			seen[question.FieldKey] = true
 		}
 	}
 	if kind == "generate" {
 		if len(result.Card.TagIDs) != len(input.Card.TagIDs) {
-			return domain.AIResult{}, fmt.Errorf("openai: generated card changed task tags")
+			return domain.AIResult{}, safeError("openai: generated card changed task tags; retry the saved job")
 		}
 		for i, tagID := range input.Card.TagIDs {
 			if result.Card.TagIDs[i] != tagID {
-				return domain.AIResult{}, fmt.Errorf("openai: generated card changed task tags")
+				return domain.AIResult{}, safeError("openai: generated card changed task tags; retry the saved job")
 			}
 		}
 	}

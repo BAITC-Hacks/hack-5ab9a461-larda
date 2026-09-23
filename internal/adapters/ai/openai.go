@@ -5,8 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -56,7 +56,7 @@ func (*OpenAI) Source() string { return "openai" }
 func (a *OpenAI) Generate(ctx context.Context, kind string, input domain.AIInput) (domain.AIResult, error) {
 	instruction, valid := kindPrompts[kind]
 	if !valid {
-		return domain.AIResult{}, errors.New("openai: unsupported operation")
+		return domain.AIResult{}, safeError("openai: unsupported operation")
 	}
 	// Normalise the empty list to JSON [] for the model's required card schema.
 	if input.Card.TagIDs == nil {
@@ -64,7 +64,7 @@ func (a *OpenAI) Generate(ctx context.Context, kind string, input domain.AIInput
 	}
 	inputJSON, err := json.Marshal(input)
 	if err != nil {
-		return domain.AIResult{}, errors.New("openai: cannot encode task input")
+		return domain.AIResult{}, safeError("openai: cannot encode task input")
 	}
 	requestJSON, err := json.Marshal(map[string]any{
 		"model": a.model, "instructions": systemPrompt + "\n\n" + instruction,
@@ -75,36 +75,43 @@ func (a *OpenAI) Generate(ctx context.Context, kind string, input domain.AIInput
 		}},
 	})
 	if err != nil {
-		return domain.AIResult{}, errors.New("openai: cannot encode request")
+		return domain.AIResult{}, safeError("openai: cannot encode request")
 	}
 	request, err := http.NewRequestWithContext(ctx, http.MethodPost, a.endpoint, bytes.NewReader(requestJSON))
 	if err != nil {
-		return domain.AIResult{}, errors.New("openai: cannot create request")
+		return domain.AIResult{}, safeError("openai: cannot create request")
 	}
 	request.Header.Set("Authorization", "Bearer "+a.apiKey)
 	request.Header.Set("Content-Type", "application/json")
 	response, err := a.client.Do(request)
 	if err != nil {
 		if ctx.Err() != nil {
-			return domain.AIResult{}, fmt.Errorf("openai: request canceled: %w", ctx.Err())
+			return domain.AIResult{}, &providerError{message: "openai: request canceled or timed out; retry the saved job", cause: ctx.Err()}
 		}
 		// Do not forward raw transport errors: they can contain endpoint credentials.
-		return domain.AIResult{}, errors.New("openai: network request failed or timed out")
+		var timeout net.Error
+		if errors.As(err, &timeout) && timeout.Timeout() {
+			return domain.AIResult{}, safeError("openai: request timed out; retry the saved job or increase AI_TIMEOUT within the supported range")
+		}
+		return domain.AIResult{}, safeError("openai: network request failed; check connectivity and OPENAI_BASE_URL before retrying")
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return domain.AIResult{}, fmt.Errorf("openai: API returned HTTP %d; retry the saved job when the service is available", response.StatusCode)
+		return domain.AIResult{}, httpError(response)
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxResponseBytes+1))
 	if err != nil {
-		return domain.AIResult{}, errors.New("openai: cannot read response")
+		return domain.AIResult{}, safeError("openai: cannot read response; retry the saved job")
 	}
 	if len(body) > maxResponseBytes {
-		return domain.AIResult{}, errors.New("openai: response exceeded size limit")
+		return domain.AIResult{}, safeError("openai: response exceeded size limit; shorten the task input before retrying")
 	}
 	var envelope struct {
-		Status string          `json:"status"`
-		Error  json.RawMessage `json:"error"`
+		Status            string          `json:"status"`
+		Error             json.RawMessage `json:"error"`
+		IncompleteDetails struct {
+			Reason string `json:"reason"`
+		} `json:"incomplete_details"`
 		Output []struct {
 			Type    string `json:"type"`
 			Content []struct {
@@ -114,27 +121,35 @@ func (a *OpenAI) Generate(ctx context.Context, kind string, input domain.AIInput
 		} `json:"output"`
 	}
 	if err := json.Unmarshal(body, &envelope); err != nil {
-		return domain.AIResult{}, errors.New("openai: invalid response envelope")
+		return domain.AIResult{}, safeError("openai: invalid response envelope; check OPENAI_BASE_URL or retry later")
+	}
+	if envelope.Status == "incomplete" {
+		switch envelope.IncompleteDetails.Reason {
+		case "max_output_tokens":
+			return domain.AIResult{}, safeError("openai: output token budget exhausted; shorten the task input or adjust the model/output token budget before retrying")
+		case "content_filter":
+			return domain.AIResult{}, safeError("openai: response stopped by the content filter; review the task content before retrying")
+		}
 	}
 	if envelope.Status != "completed" || (len(envelope.Error) > 0 && string(envelope.Error) != "null") {
-		return domain.AIResult{}, errors.New("openai: response was incomplete or failed")
+		return domain.AIResult{}, safeError("openai: response was incomplete or failed; retry the saved job")
 	}
 	var output string
 	for _, item := range envelope.Output {
 		for _, content := range item.Content {
 			if content.Type == "refusal" {
-				return domain.AIResult{}, errors.New("openai: model refused to process this task")
+				return domain.AIResult{}, safeError("openai: model refused to process this task; review the task content before retrying")
 			}
 			if item.Type == "message" && content.Type == "output_text" {
 				if output != "" {
-					return domain.AIResult{}, errors.New("openai: multiple structured outputs")
+					return domain.AIResult{}, safeError("openai: multiple structured outputs; retry the saved job")
 				}
 				output = content.Text
 			}
 		}
 	}
 	if strings.TrimSpace(output) == "" {
-		return domain.AIResult{}, errors.New("openai: no structured output")
+		return domain.AIResult{}, safeError("openai: no structured output; retry the saved job")
 	}
 	return decodeResult([]byte(output), kind, input)
 }

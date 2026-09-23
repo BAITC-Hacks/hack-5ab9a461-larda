@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"fmt"
+	"math"
 	"net/url"
 	"sort"
 	"strings"
@@ -246,8 +247,8 @@ func (s *Service) TransferCaptain(ctx context.Context, actorID, teamID, userID i
 }
 
 func (s *Service) SubmitProposal(ctx context.Context, actorID, taskID int64, in ProposalInput) (out *domain.Proposal, err error) {
-	if in.TeamID <= 0 || strings.TrimSpace(in.SolutionIdea) == "" || strings.TrimSpace(in.Plan) == "" || in.DurationDays <= 0 || (in.PrototypeURL != "" && !validURL(in.PrototypeURL)) {
-		return nil, workflowInvalid("team, solution idea, plan, positive duration and valid optional prototype URL are required")
+	if in.TeamID <= 0 || strings.TrimSpace(in.SolutionIdea) == "" || strings.TrimSpace(in.Plan) == "" || in.DurationDays <= 0 || in.DurationDays > math.MaxInt32 || (in.PrototypeURL != "" && !validURL(in.PrototypeURL)) {
+		return nil, workflowInvalid("team, solution idea, plan, duration from 1 to 2147483647 and valid optional prototype URL are required")
 	}
 	err = s.repo.Transact(ctx, func(r ports.Store) error {
 		t, err := r.Task(taskID, true)
@@ -471,7 +472,7 @@ func (s *Service) CancelProposal(ctx context.Context, actorID, proposalID int64)
 }
 
 func (s *Service) AddMilestone(ctx context.Context, actorID, proposalID int64, in MilestoneInput) (out *domain.Milestone, err error) {
-	if strings.TrimSpace(in.Title) == "" || len([]rune(in.Title)) > 200 || in.Position < 0 || (in.ExpReward != nil && (*in.ExpReward < 0 || *in.ExpReward > 2147483647)) {
+	if strings.TrimSpace(in.Title) == "" || len([]rune(in.Title)) > 200 || in.Position < 0 || in.Position > math.MaxInt32 || (in.ExpReward != nil && (*in.ExpReward < 0 || *in.ExpReward > math.MaxInt32)) {
 		return nil, workflowInvalid("invalid milestone title, position or reward")
 	}
 	err = s.repo.Transact(ctx, func(r ports.Store) error {
@@ -495,6 +496,9 @@ func (s *Service) AddMilestone(ctx context.Context, actorID, proposalID int64, i
 		if position == 0 {
 			position = 1
 			for _, m := range milestones {
+				if m.Position == math.MaxInt32 {
+					return workflowConflict("automatic milestone position exceeds supported range; choose an unused position")
+				}
 				if m.Position >= position {
 					position = m.Position + 1
 				}

@@ -10,7 +10,7 @@ This file describes the JSON sent and returned by the current Go handlers and do
 - IDs, scores, revisions, rewards and durations are JSON numbers. Use positive integer resource IDs, not strings. Timestamps use RFC 3339, usually UTC with `Z`; fractional seconds and offsets may occur.
 - Persisted resource responses include their declared fields even when values are `""` or `null`. Do not treat `""`, `null` and a missing property as interchangeable.
 - Most list endpoints initialize empty collections as `[]`. Nested snapshots and immediate mutation responses can contain `null` collections, notably `AIJob.input.questions`, `AIJob.result.questions`, uninitialized evaluation arrays, initial `Task.tag_ids` and `Proposal.milestones`. Normalize a nullable collection with `value ?? []` where appropriate.
-- Requests must contain exactly one JSON object. Top-level `null`, arrays, empty bodies for body-required endpoints, malformed JSON, unknown properties and trailing JSON values are rejected. The request limit is 1 MiB.
+- Requests must contain exactly one JSON object. Top-level `null`, arrays, empty bodies for body-required endpoints, malformed JSON, unknown properties and trailing JSON values are rejected. The request limit is 1 MiB. Text values cannot contain the NUL character (`U+0000`, including JSON `\u0000`); invalid input returns `400`.
 - For `PATCH /tasks/:taskID`, omitted or `null` pointer fields mean “leave unchanged”; an empty string clears a text field, and `tag_ids: []` clears tags. `raw_description` cannot be cleared. A revision-only patch is invalid. For full team `PUT`, omitted description/interests reset to `""`/`[]`, and name is required.
 - `PUT /users/me/tags` replaces all tags. `tag_ids: []` clears them; omission or `null` also clears them in the current implementation. Send an explicit array.
 - A nullable milestone `exp_reward` has different semantics: omitted or `null` means the default 100, while `0` means zero reward.
@@ -232,7 +232,7 @@ Only the selected team's captain can submit to a published, open task. All prope
 }
 ```
 
-`solution_idea` and `plan` must be nonblank, `duration_days` positive, and `team_id` valid. `prototype_url` may be omitted or `""`; a nonempty URL must use HTTP/HTTPS, have a host and contain no embedded credentials. Submit milestones separately after the proposal is accepted.
+`solution_idea` and `plan` must be nonblank, `duration_days` must be an integer from 1 to 2,147,483,647, and `team_id` valid. `prototype_url` may be omitted or `""`; a nonempty URL must use HTTP/HTTPS, have a host and contain no embedded credentials. Submit milestones separately after the proposal is accepted.
 
 ### Decide proposal
 
@@ -277,7 +277,7 @@ To create a milestone with no EXP reward, send zero explicitly:
 }
 ```
 
-Explicit rewards must be 0–2,147,483,647. Title must be nonblank and at most 200 characters. Explicit positive positions must be unique within the proposal. A business-created milestone is approved immediately; a captain-created one requires the no-body business `approve` action.
+Explicit rewards must be 0–2,147,483,647. Title must be nonblank and at most 200 characters. `position` must be an integer from 0 to 2,147,483,647; explicit positive positions must be unique within the proposal. Auto-append fails with `409` if the highest position is already 2,147,483,647; choose an unused position explicitly. A business-created milestone is approved immediately; a captain-created one requires the no-body business `approve` action.
 
 ### Submit milestone result
 
@@ -1112,6 +1112,8 @@ Result questions use the [TaskQuestion](#task-questions) field shape but are raw
 
 `attempts` increments when a worker claims a job. On failure, `error` and Task `ai_error` contain a displayable message; retry reuses the failed current job, clears the error and returns the Task with `ai_status: "pending"`. A lease token is internal and never serialized. New edits can supersede old jobs; inspect the task's latest revision and status instead of trusting any single older job.
 
+AI diagnostics are owner-only and sanitized: they distinguish an invalid OpenAI key (`401`), unavailable model/endpoint (`400`/`404`), insufficient credits or spending limits (`429` quota), rate limits (`429`), timeouts, and invalid model output. Upstream response bodies and secrets are never returned. These provider status numbers appear in the message; fetching the failed task still returns `200`. Display the message as text, correct the configuration/quota or wait as appropriate, then explicitly call `POST /tasks/:taskID/ai/retry` without a body and resume polling. Retry requires an editable task whose current check failed; otherwise it returns `409`. Do not automatically retry failed checks or branch application logic on the exact diagnostic wording.
+
 ### Users
 
 Example `GET /users` response with all User fields. The fresh seed has three identities; names and EXP can be read dynamically:
@@ -1482,4 +1484,3 @@ Application errors use one envelope:
 | 503 | `unavailable` | Database unavailable on health/readiness checks. |
 
 The demo API does not return a JWT or use `401` for a missing identity header. A task AI failure is usually represented by a successful Task read with `ai_status: "failed"`, rather than a failing GET response. Error messages may vary; branch UI behavior on HTTP status and `error.code`. For a stale revision, reload and reconcile edits before resubmitting.
-
