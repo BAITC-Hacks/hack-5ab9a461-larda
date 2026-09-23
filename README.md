@@ -2,6 +2,8 @@
 
 Бэкенд на Go, Gin, GORM и PostgreSQL. Бизнес превращает описание проблемы в карточку с помощью OpenAI, публикует её, выбирает команды и принимает результаты этапов. Студенты получают EXP и достижения. REST-контракт: [docs/openapi.yaml](docs/openapi.yaml); требования: [Task.md](Task.md), модель данных: [ERD.md](ERD.md).
 
+Для фронтенда: [руководство интеграции](for_frontend.md) и [JSON запросов и ответов](json.md). Для проверки API импортируйте [Postman-коллекцию](postman/Larda.postman_collection.json) и при необходимости [локальное окружение](postman/Larda.postman_environment.json). Коллекция содержит примеры всех маршрутов, проверки ответов и сценарий с ожиданием AI; для бесплатного прогона используйте `AI_MODE=fallback`.
+
 ## Запуск
 
 Нужен Docker с Docker Compose v2. Команды для PowerShell из корня проекта:
