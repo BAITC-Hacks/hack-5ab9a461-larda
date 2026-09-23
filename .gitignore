@@ -5,3 +5,12 @@ vite.config.js
 vite.config.d.ts
 test-results/
 playwright-report/
+.env
+.env.*
+!.env.example
+.cache/
+.tools/
+bin/
+coverage.out
+*.exe
+tmp/

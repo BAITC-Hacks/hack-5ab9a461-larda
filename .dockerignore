@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+.cache
+.tools
+bin
+tmp
+*.exe
+*.docx
+coverage.out

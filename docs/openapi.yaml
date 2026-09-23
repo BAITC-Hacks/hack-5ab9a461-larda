@@ -1,0 +1,1909 @@
+openapi: "3.0.3"
+info: 
+  title: "Larda backend"
+  version: "1.0.0"
+  description: "Demo REST API. X-Demo-User-ID selects an existing user; there are no credentials or JWT. Roles and captain permissions are checked by use cases. Body-bearing endpoints accept application/json, reject unknown fields and limit bodies to 1 MiB. Errors use {error:{code,message}}. Common error statuses: 400 invalid_input, 403 forbidden, 404 not_found, 409 conflict, 413 payload_too_large, 415 unsupported_media_type, 500 internal. Task creation and changes persist before OpenAI work, return 202, and must be polled. Failed jobs require explicit retry; explicit fallback mode is selected by server configuration. Public task responses contain only the published card and published evaluation. New edits and their ratings become public only after owner confirmation. A low readiness score does not block publication or proposals. Score weights: context_need 20, data 20, result 15, success_criteria 15, constraints 10, users 10, communication 10. Readiness categories: draft 0–39, working 40–69, ready 70–89, priority 90–100."
+servers: 
+  - 
+    url: "http://localhost:8080"
+security: []
+tags: 
+  - 
+    name: "Health"
+  - 
+    name: "Users"
+  - 
+    name: "Tasks"
+  - 
+    name: "Teams"
+  - 
+    name: "Proposals"
+  - 
+    name: "Milestones"
+paths: 
+  "/livez": 
+    get: 
+      summary: "Process liveness"
+      tags: 
+        - "Health"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Status"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/healthz": 
+    get: 
+      summary: "Database readiness"
+      tags: 
+        - "Health"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Status"
+        "503": 
+          "$ref": "#/components/responses/Error"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/readyz": 
+    get: 
+      summary: "Database readiness"
+      tags: 
+        - "Health"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Status"
+        "503": 
+          "$ref": "#/components/responses/Error"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/users": 
+    get: 
+      summary: "List demo users"
+      tags: 
+        - "Users"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/User"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/users/{userID}": 
+    get: 
+      summary: "Read public demo profile, skills, achievements and EXP ledger"
+      tags: 
+        - "Users"
+      parameters: 
+        - 
+          name: "userID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Profile"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/users/me/tags": 
+    put: 
+      summary: "Replace the acting user's skill tags"
+      tags: 
+        - "Users"
+      security: 
+        - 
+          DemoUser: []
+      responses: 
+        "204": 
+          description: "Updated; no response body."
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                tag_ids: 
+                  type: "array"
+                  items: 
+                    type: "integer"
+                    format: "int64"
+                    minimum: 1
+              required: 
+                - "tag_ids"
+              additionalProperties: false
+  "/api/v1/tags": 
+    get: 
+      summary: "List specialization, technology and skill tags"
+      tags: 
+        - "Users"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Tag"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/achievements": 
+    get: 
+      summary: "List achievement definitions"
+      tags: 
+        - "Users"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Achievement"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks": 
+    get: 
+      summary: "Browse published tasks"
+      tags: 
+        - "Tasks"
+      parameters: 
+        - 
+          name: "topic"
+          in: "query"
+          required: false
+          schema: 
+            type: "string"
+        - 
+          name: "industry"
+          in: "query"
+          required: false
+          schema: 
+            type: "string"
+        - 
+          name: "readiness"
+          in: "query"
+          required: false
+          schema: 
+            type: "string"
+            enum: 
+              - "draft"
+              - "working"
+              - "ready"
+              - "priority"
+        - 
+          name: "tag_ids"
+          in: "query"
+          required: false
+          schema: 
+            type: "string"
+          description: "Comma-separated positive tag IDs."
+        - 
+          name: "limit"
+          in: "query"
+          required: false
+          schema: 
+            type: "integer"
+            minimum: 1
+            maximum: 100
+            default: 20
+        - 
+          name: "offset"
+          in: "query"
+          required: false
+          schema: 
+            type: "integer"
+            minimum: 0
+            default: 0
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+    post: 
+      summary: "Save a raw task and enqueue questions and evaluation"
+      tags: 
+        - "Tasks"
+      description: "Business only. The raw description and AI job are committed together. At least three clarification questions are generated in the single supported question round."
+      security: 
+        - 
+          DemoUser: []
+      responses: 
+        "202": 
+          description: "Saved and queued for AI processing."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/CreateTaskInput"
+  "/api/v1/tasks/mine": 
+    get: 
+      summary: "List the business owner's tasks, including drafts"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}": 
+    get: 
+      summary: "Read a task"
+      tags: 
+        - "Tasks"
+      description: "Anonymous readers and other users can read published tasks only. The owner sees the private raw input, latest draft and AI status."
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+    patch: 
+      summary: "Update draft fields and enqueue a new evaluation"
+      tags: 
+        - "Tasks"
+      description: "Owner only. revision must equal the current revision; stale writes return 409. Omitted fields are preserved. A published card stays unchanged until the new draft is confirmed."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "202": 
+          description: "Saved and queued for AI processing."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/DraftPatch"
+  "/api/v1/tasks/{taskID}/questions": 
+    get: 
+      summary: "Read the owner's clarification questions"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Question"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/answers": 
+    post: 
+      summary: "Save answers and enqueue generated card and evaluation"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "202": 
+          description: "Saved and queued for AI processing."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/AnswersInput"
+  "/api/v1/tasks/{taskID}/ai-jobs": 
+    get: 
+      summary: "Read owner-only background AI job status"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/AIJob"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/ai/retry": 
+    post: 
+      summary: "Retry the failed AI operation explicitly"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "202": 
+          description: "Saved and queued for AI processing."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/confirm": 
+    post: 
+      summary: "Confirm the evaluated draft revision"
+      tags: 
+        - "Tasks"
+      description: "Owner only. The exact current revision must have succeeded in AI validation. For an already published task, confirmation replaces the public snapshot and public score."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                revision: 
+                  type: "integer"
+                  format: "int64"
+                  minimum: 1
+              required: 
+                - "revision"
+              additionalProperties: false
+  "/api/v1/tasks/{taskID}/publish": 
+    post: 
+      summary: "Publish the confirmed task"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/archive": 
+    post: 
+      summary: "Archive an owner's task"
+      tags: 
+        - "Tasks"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/complete": 
+    post: 
+      summary: "Complete the task and award final EXP"
+      tags: 
+        - "Tasks"
+      description: "Business owner only. Completion requires the applicable team executions and milestones to be complete."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/cancel": 
+    post: 
+      summary: "Cancel the task"
+      tags: 
+        - "Tasks"
+      description: "Business owner only. Completion requires the applicable team executions and milestones to be complete."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Task"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/teams": 
+    get: 
+      summary: "List teams with aggregated member skill tags"
+      tags: 
+        - "Teams"
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+    post: 
+      summary: "Create a team with the acting student as captain"
+      tags: 
+        - "Teams"
+      security: 
+        - 
+          DemoUser: []
+      responses: 
+        "201": 
+          description: "Created."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/TeamInput"
+  "/api/v1/teams/{teamID}": 
+    get: 
+      summary: "Read a team and its members"
+      tags: 
+        - "Teams"
+      parameters: 
+        - 
+          name: "teamID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+    put: 
+      summary: "Replace a team's profile"
+      tags: 
+        - "Teams"
+      description: "Captain only."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "teamID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/TeamInput"
+  "/api/v1/teams/{teamID}/members": 
+    post: 
+      summary: "Add a student to the team"
+      tags: 
+        - "Teams"
+      description: "Captain only. Membership can change during active work; changes and EXP payouts share a team lock. Payouts use members present at completion, and retries do not reward members added afterward."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "teamID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                user_id: 
+                  type: "integer"
+                  format: "int64"
+                  minimum: 1
+              required: 
+                - "user_id"
+              additionalProperties: false
+  "/api/v1/teams/{teamID}/members/{userID}": 
+    delete: 
+      summary: "Remove a team member"
+      tags: 
+        - "Teams"
+      description: "Captain only. Transfer captaincy before removing the captain."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "teamID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        - 
+          name: "userID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/teams/{teamID}/captain": 
+    post: 
+      summary: "Transfer captaincy to another team member"
+      tags: 
+        - "Teams"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "teamID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Team"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                user_id: 
+                  type: "integer"
+                  format: "int64"
+                  minimum: 1
+              required: 
+                - "user_id"
+              additionalProperties: false
+  "/api/v1/teams/{teamID}/proposals": 
+    get: 
+      summary: "List proposals and milestones visible to team members"
+      tags: 
+        - "Proposals"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "teamID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Proposal"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/tasks/{taskID}/proposals": 
+    get: 
+      summary: "List task proposals for the business owner"
+      tags: 
+        - "Proposals"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                type: "array"
+                items: 
+                  "$ref": "#/components/schemas/Proposal"
+        default: 
+          "$ref": "#/components/responses/Error"
+    post: 
+      summary: "Submit a team's solution proposal"
+      tags: 
+        - "Proposals"
+      description: "Only that team's captain. Publication is required; a low score is allowed. Propose milestones separately after creating the proposal."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "taskID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "201": 
+          description: "Created."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Proposal"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/ProposalInput"
+  "/api/v1/proposals/{proposalID}/decision": 
+    post: 
+      summary: "Business selects or rejects a proposal"
+      tags: 
+        - "Proposals"
+      description: "Task owner only. Multiple teams may be selected for the same task."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "proposalID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Proposal"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                status: 
+                  type: "string"
+                  enum: 
+                    - "accepted"
+                    - "rejected"
+              required: 
+                - "status"
+              additionalProperties: false
+  "/api/v1/proposals/{proposalID}/complete": 
+    post: 
+      summary: "Finish one selected team's execution"
+      tags: 
+        - "Proposals"
+      description: "Task business owner only."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "proposalID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Proposal"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/proposals/{proposalID}/cancel": 
+    post: 
+      summary: "Cancel one team's execution"
+      tags: 
+        - "Proposals"
+      description: "Task business owner only."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "proposalID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Proposal"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/proposals/{proposalID}/milestones": 
+    post: 
+      summary: "Propose a milestone"
+      tags: 
+        - "Milestones"
+      description: "For an accepted active proposal, the task owner or the team's captain may propose a stage and reward. A business-created stage is approved immediately; a captain-created stage requires business approval. Omitted exp_reward defaults to 100; omitted or zero position appends the stage."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "proposalID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "201": 
+          description: "Created."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Milestone"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              "$ref": "#/components/schemas/MilestoneInput"
+  "/api/v1/milestones/{milestoneID}/approve": 
+    post: 
+      summary: "Business approves the proposed milestone"
+      tags: 
+        - "Milestones"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "milestoneID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Milestone"
+        default: 
+          "$ref": "#/components/responses/Error"
+  "/api/v1/milestones/{milestoneID}/submit": 
+    post: 
+      summary: "Captain submits the stage result"
+      tags: 
+        - "Milestones"
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "milestoneID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Milestone"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                result_url: 
+                  type: "string"
+                  format: "uri"
+              required: 
+                - "result_url"
+              additionalProperties: false
+  "/api/v1/milestones/{milestoneID}/review": 
+    post: 
+      summary: "Business accepts or returns a submitted stage"
+      tags: 
+        - "Milestones"
+      description: "Acceptance completes the milestone and awards its EXP exactly once. Rejection allows a corrected submission."
+      security: 
+        - 
+          DemoUser: []
+      parameters: 
+        - 
+          name: "milestoneID"
+          in: "path"
+          required: true
+          schema: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      responses: 
+        "200": 
+          description: "Success."
+          content: 
+            "application/json": 
+              schema: 
+                "$ref": "#/components/schemas/Milestone"
+        default: 
+          "$ref": "#/components/responses/Error"
+      requestBody: 
+        required: true
+        content: 
+          "application/json": 
+            schema: 
+              type: "object"
+              properties: 
+                accepted: 
+                  type: "boolean"
+              required: 
+                - "accepted"
+              additionalProperties: false
+components: 
+  securitySchemes: 
+    DemoUser: 
+      type: "apiKey"
+      in: "header"
+      name: "X-Demo-User-ID"
+      description: "Demo persona selection only, not production authentication. Use IDs from GET /api/v1/users."
+  schemas: 
+    Error: 
+      type: "object"
+      properties: 
+        error: 
+          type: "object"
+          properties: 
+            code: 
+              type: "string"
+            message: 
+              type: "string"
+          required: 
+            - "code"
+            - "message"
+          additionalProperties: false
+      required: 
+        - "error"
+      additionalProperties: false
+    Status: 
+      type: "object"
+      properties: 
+        status: 
+          type: "string"
+      required: 
+        - "status"
+      additionalProperties: false
+    User: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        name: 
+          type: "string"
+        role: 
+          type: "string"
+          enum: 
+            - "business"
+            - "student"
+        company_name: 
+          type: "string"
+          nullable: true
+        exp: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+      additionalProperties: false
+    Tag: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        slug: 
+          type: "string"
+        name: 
+          type: "string"
+        kind: 
+          type: "string"
+          enum: 
+            - "specialization"
+            - "technology"
+            - "skill"
+      additionalProperties: false
+    Card: 
+      type: "object"
+      properties: 
+        industry: 
+          type: "string"
+        topic: 
+          type: "string"
+        title: 
+          type: "string"
+        context: 
+          type: "string"
+        need: 
+          type: "string"
+        target_users: 
+          type: "string"
+        available_data: 
+          type: "string"
+        constraints: 
+          type: "string"
+        expected_result: 
+          type: "string"
+        success_criteria: 
+          type: "string"
+        contact: 
+          type: "string"
+        interaction_format: 
+          type: "string"
+        feedback_process: 
+          type: "string"
+        tag_ids: 
+          type: "array"
+          items: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      additionalProperties: false
+    Criterion: 
+      type: "object"
+      properties: 
+        key: 
+          type: "string"
+          enum: 
+            - "context_need"
+            - "data"
+            - "result"
+            - "success_criteria"
+            - "constraints"
+            - "users"
+            - "communication"
+        score: 
+          type: "integer"
+          minimum: 0
+          maximum: 20
+        reason: 
+          type: "string"
+        missing: 
+          type: "array"
+          items: 
+            type: "string"
+      required: 
+        - "key"
+        - "score"
+        - "reason"
+        - "missing"
+      additionalProperties: false
+    Evaluation: 
+      type: "object"
+      properties: 
+        score: 
+          type: "integer"
+          minimum: 0
+          maximum: 100
+        criteria: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/Criterion"
+        missing: 
+          type: "array"
+          items: 
+            type: "string"
+        source: 
+          type: "string"
+          description: "openai, fallback or demo_seed. The explicit fallback mode only checks field presence and is never enabled automatically after an OpenAI failure."
+      required: 
+        - "score"
+        - "criteria"
+        - "missing"
+        - "source"
+      additionalProperties: false
+    Task: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        owner_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        industry: 
+          type: "string"
+        topic: 
+          type: "string"
+        title: 
+          type: "string"
+        context: 
+          type: "string"
+        need: 
+          type: "string"
+        target_users: 
+          type: "string"
+        available_data: 
+          type: "string"
+        constraints: 
+          type: "string"
+        expected_result: 
+          type: "string"
+        success_criteria: 
+          type: "string"
+        contact: 
+          type: "string"
+        interaction_format: 
+          type: "string"
+        feedback_process: 
+          type: "string"
+        tag_ids: 
+          type: "array"
+          items: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+        raw_description: 
+          type: "string"
+          description: "Owner only; omitted or empty for public readers."
+        draft_card: 
+          allOf:
+            - "$ref": "#/components/schemas/Card"
+          nullable: true
+        draft_evaluation: 
+          allOf:
+            - "$ref": "#/components/schemas/Evaluation"
+          nullable: true
+        revision: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        evaluated_revision: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+          nullable: true
+        ai_status: 
+          type: "string"
+          enum: 
+            - "pending"
+            - "running"
+            - "succeeded"
+            - "failed"
+            - ""
+        ai_error: 
+          type: "string"
+          description: "Owner only; an API-safe failure summary."
+        publication_status: 
+          type: "string"
+          enum: 
+            - "draft"
+            - "published"
+            - "archived"
+        readiness_score: 
+          type: "integer"
+          minimum: 0
+          maximum: 100
+        score_breakdown: 
+          "$ref": "#/components/schemas/Evaluation"
+        confirmed_at: 
+          type: "string"
+          format: "date-time"
+          nullable: true
+        published_at: 
+          type: "string"
+          format: "date-time"
+          nullable: true
+        execution_status: 
+          type: "string"
+        team_exp_reward: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        business_exp_reward: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        completed_at: 
+          type: "string"
+          format: "date-time"
+          nullable: true
+      additionalProperties: false
+    Question: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        task_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        round_number: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        position: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        field_key: 
+          type: "string"
+        question: 
+          type: "string"
+        answer: 
+          type: "string"
+          nullable: true
+      additionalProperties: false
+    AIJob: 
+      type: "object"
+      description: "Owner-only persisted background job. Contains revision, status, attempts and safe error; input/result may contain the owner's private task content."
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        task_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        revision: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        kind: 
+          type: "string"
+        status: 
+          type: "string"
+          enum: 
+            - "pending"
+            - "running"
+            - "succeeded"
+            - "failed"
+            - "superseded"
+        attempts: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        error: 
+          type: "string"
+        input: 
+          type: "object"
+        result: 
+          type: "object"
+          nullable: true
+    TeamMember: 
+      type: "object"
+      properties: 
+        team_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        user_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        role: 
+          type: "string"
+          enum: 
+            - "captain"
+            - "member"
+        joined_at: 
+          type: "string"
+          format: "date-time"
+      additionalProperties: false
+    Team: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        name: 
+          type: "string"
+        description: 
+          type: "string"
+        interests: 
+          type: "array"
+          items: 
+            type: "string"
+        members: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/TeamMember"
+        tags: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/Tag"
+      additionalProperties: false
+    Milestone: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        proposal_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        position: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        title: 
+          type: "string"
+        description: 
+          type: "string"
+        exp_reward: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        status: 
+          type: "string"
+        result_url: 
+          type: "string"
+          nullable: true
+        submitted_at: 
+          type: "string"
+          nullable: true
+        completed_by: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        completed_at: 
+          type: "string"
+          nullable: true
+        proposed_by: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        approved_by: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        approved_at: 
+          type: "string"
+          nullable: true
+      additionalProperties: false
+    Proposal: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        task_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        team_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        submitted_by: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        solution_idea: 
+          type: "string"
+        plan: 
+          type: "string"
+        duration_days: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        prototype_url: 
+          type: "string"
+        status: 
+          type: "string"
+        decided_by: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        decided_at: 
+          type: "string"
+          nullable: true
+        execution_status: 
+          type: "string"
+        completed_at: 
+          type: "string"
+          nullable: true
+        milestones: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/Milestone"
+      additionalProperties: false
+    Achievement: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        created_at: 
+          type: "string"
+          format: "date-time"
+        updated_at: 
+          type: "string"
+          format: "date-time"
+        code: 
+          type: "string"
+        title: 
+          type: "string"
+        description: 
+          type: "string"
+        role_scope: 
+          type: "string"
+        event_type: 
+          type: "string"
+        target_count: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        exp_reward: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        is_active: 
+          type: "boolean"
+      additionalProperties: false
+    UserAchievement: 
+      type: "object"
+      properties: 
+        user_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        achievement_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        unlocked_at: 
+          type: "string"
+          format: "date-time"
+      additionalProperties: false
+    ExpTransaction: 
+      type: "object"
+      properties: 
+        id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        user_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        amount: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        reason: 
+          type: "string"
+        milestone_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        task_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        team_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        achievement_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+          nullable: true
+        created_at: 
+          type: "string"
+          format: "date-time"
+      additionalProperties: false
+    Profile: 
+      type: "object"
+      properties: 
+        user: 
+          "$ref": "#/components/schemas/User"
+        tags: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/Tag"
+        achievements: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/UserAchievement"
+        exp_history: 
+          type: "array"
+          items: 
+            "$ref": "#/components/schemas/ExpTransaction"
+      additionalProperties: false
+    CreateTaskInput: 
+      type: "object"
+      properties: 
+        raw_description: 
+          type: "string"
+        industry: 
+          type: "string"
+        topic: 
+          type: "string"
+        tag_ids: 
+          type: "array"
+          items: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      required: 
+        - "raw_description"
+      additionalProperties: false
+    DraftPatch: 
+      type: "object"
+      properties: 
+        revision: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        raw_description: 
+          type: "string"
+        industry: 
+          type: "string"
+        topic: 
+          type: "string"
+        title: 
+          type: "string"
+        context: 
+          type: "string"
+        need: 
+          type: "string"
+        target_users: 
+          type: "string"
+        available_data: 
+          type: "string"
+        constraints: 
+          type: "string"
+        expected_result: 
+          type: "string"
+        success_criteria: 
+          type: "string"
+        contact: 
+          type: "string"
+        interaction_format: 
+          type: "string"
+        feedback_process: 
+          type: "string"
+        tag_ids: 
+          type: "array"
+          items: 
+            type: "integer"
+            format: "int64"
+            minimum: 1
+      required: 
+        - "revision"
+      additionalProperties: false
+    AnswersInput: 
+      type: "object"
+      properties: 
+        revision: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        answers: 
+          type: "array"
+          items: 
+            type: "object"
+            properties: 
+              question_id: 
+                type: "integer"
+                format: "int64"
+                minimum: 1
+              answer: 
+                type: "string"
+            required: 
+              - "question_id"
+              - "answer"
+            additionalProperties: false
+      required: 
+        - "revision"
+        - "answers"
+      additionalProperties: false
+    TeamInput: 
+      type: "object"
+      properties: 
+        name: 
+          type: "string"
+        description: 
+          type: "string"
+        interests: 
+          type: "array"
+          items: 
+            type: "string"
+      required: 
+        - "name"
+      additionalProperties: false
+    ProposalInput: 
+      type: "object"
+      properties: 
+        team_id: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        solution_idea: 
+          type: "string"
+        plan: 
+          type: "string"
+        duration_days: 
+          type: "integer"
+          format: "int64"
+          minimum: 1
+        prototype_url: 
+          type: "string"
+      required: 
+        - "team_id"
+        - "solution_idea"
+        - "plan"
+        - "duration_days"
+      additionalProperties: false
+    MilestoneInput: 
+      type: "object"
+      properties: 
+        title: 
+          type: "string"
+        description: 
+          type: "string"
+        exp_reward: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+        position: 
+          type: "integer"
+          format: "int64"
+          minimum: 0
+      required: 
+        - "title"
+      additionalProperties: false
+  responses: 
+    Error: 
+      description: "A structured application or HTTP error."
+      content: 
+        "application/json": 
+          schema: 
+            "$ref": "#/components/schemas/Error"
+  parameters: {}
